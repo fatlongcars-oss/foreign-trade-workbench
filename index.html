@@ -1205,6 +1205,15 @@
       background:#eef2ff; color:#4338ca; font-size:10.5px; font-weight:700; white-space:nowrap;
     }
     .layout-level.lv2 { background:#f1f5f9; color:#64748b; }
+    /* BugFix#4：三级 / 四级 / 五级目录层级标记与缩进引导线 */
+    .layout-level.lv3 { background:#ecfdf5; color:#047857; }
+    .layout-level.lv4 { background:#fff7ed; color:#c2410c; }
+    .layout-level.lv5 { background:#fdf4ff; color:#a21caf; }
+    .layout-item.lv-virtual { background:#fcfdff; }
+    .layout-item.lv-virtual .layout-item-title { border-style:dashed; }
+    .layout-item.layout-addrow { border-bottom:none; padding-top:4px; padding-bottom:8px; }
+    .layout-fold { cursor:pointer; user-select:none; }
+    .layout-fold:hover { color:var(--primary); }
     .layout-target { font-size:10.5px; color:#94a3b8; margin-left:6px; white-space:nowrap; }
     .layout-section-t {
       margin:18px 0 10px; padding-top:14px; border-top:1px solid var(--border);
@@ -3257,14 +3266,18 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
       if (!container) return;
       container.innerHTML = navStructure.map((g, gi) => {
         const titleHtml = g.title ? `<div class="nav-group-title">${escapeHtml(g.title)}</div>` : '';
-        const itemsHtml = g.items.map((it, ii) => {
+        // BugFix#4：递归渲染，让用户自建的三级/四级目录也能出现在侧边栏（按层级缩进）
+        const renderNavNode = (it, depth) => {
           const icon = navIconMap[it.icon] ? navIconMap[it.icon] : ('<span class="nav-emoji">'+(it.icon || '🔗')+'</span>');
           const badge = it.badgeId ? `<span class="nav-badge" id="${it.badgeId}">${it.badgeId === 'customerBadge' ? appData.customers.length : 0}</span>` : '';
-          if (it.type === 'link') {
-            return `<div class="nav-item" onclick="window.open('${(it.href||'').replace(/'/g,'\\\'')}', '_blank')">${icon}<span>${escapeHtml(it.title)}</span>${badge}</div>`;
-          }
-          return `<div class="nav-item" data-page="${it.page || it.id}" onclick="switchPage('${it.page || it.id}')">${icon}<span>${escapeHtml(it.title)}</span>${badge}</div>`;
-        }).join('');
+          const ind = depth > 0 ? ` style="padding-left:${14 + depth * 14}px;"` : '';
+          const row = (it.type === 'link')
+            ? `<div class="nav-item"${ind} onclick="window.open('${(it.href||'').replace(/'/g,'\\\'')}', '_blank')">${icon}<span>${escapeHtml(it.title)}</span>${badge}</div>`
+            : `<div class="nav-item" data-page="${it.page || it.id}"${ind} onclick="switchPage('${it.page || it.id}')">${icon}<span>${escapeHtml(it.title)}</span>${badge}</div>`;
+          const kids = Array.isArray(it.children) ? it.children : [];
+          return row + kids.map(c => renderNavNode(c, depth + 1)).join('');
+        };
+        const itemsHtml = (g.items || []).map(it => renderNavNode(it, 0)).join('');
         const pushStyle = (gi === navStructure.length - 1) ? ' style="margin-top: auto; border-top: 1px solid var(--border); padding-top: 12px;"' : '';
         return `<div class="nav-group"${pushStyle}>${titleHtml}${itemsHtml}</div>`;
       }).join('');
@@ -4595,7 +4608,18 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
 
     /* ===== 跟进人权限体系（当前用户 / 跟进人可见性与字段权限） ===== */
     function getTeam() { return appData.team || (appData.team = { current: 'admin', adminPin: '', users: [] }); }
-    function isAdmin() { return getTeam().current === 'admin'; }
+    // BugFix#3：原实现只认 current==='admin'，一旦数据里残留了已删除成员的身份，
+    // 就会把管理员功能（团队权限 / 新增客户 / 全字段可见）全部锁死且无法自救。
+    // 这里增加兜底：当前身份不在成员列表中时，自动回落为管理员。
+    function isAdmin() {
+      const t = getTeam();
+      if (!t.current || t.current === 'admin') return true;
+      if (!Array.isArray(t.users) || !t.users.some(function (u) { return u && u.name === t.current; })) {
+        t.current = 'admin';
+        return true;
+      }
+      return false;
+    }
     function currentFollower() {
       const t = getTeam();
       if (t.current === 'admin') return null;
@@ -4672,7 +4696,12 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
     }
     function defaultPerms() { return { contact: true, profile: true, risk: false, strategy: false, scripts: false, follow: true }; }
     function openTeamModal() {
-      if (!isAdmin()) { alert('仅管理员可管理团队权限。'); return; }
+      // BugFix#2：不再硬拦截。访客视角下提示切回管理员，而不是弹一个点了也没用的 alert。
+      if (!isAdmin()) {
+        if (!confirm('当前为「' + getTeam().current + '」访客视角，需切回管理员才能管理团队权限。\n是否立即切换？')) return;
+        switchToUser('admin');
+        if (!isAdmin()) return;
+      }
       renderTeamModal();
       renderPerm();               // UI改造#10：权限管理面板并入团队权限弹窗
       const m = document.getElementById('teamModal');
@@ -6331,48 +6360,231 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
       renderSettingsNav();
       renderCategoryConfig();
       document.getElementById('settingsModal').classList.add('active');
-      // 兼容旧入口 openSettings('cat')：直接把视图滚到类目配置区块
-      if (tab === 'cat') {
-        const box = document.getElementById('settingsCatBox');
-        if (box) setTimeout(function () { box.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
-      }
+      // 兼容旧入口 openSettings('cat')：展开折叠的类目配置面板并滚动定位
+      if (tab === 'cat') setTimeout(function () { setCatFold(true); }, 60);
+    }
+    // BugFix#5：类目配置改为默认折叠的高级面板
+    function setCatFold(open) {
+      const box = document.getElementById('settingsCatBox');
+      const t = document.getElementById('settingsCatFold');
+      if (!box) return;
+      box.style.display = open ? '' : 'none';
+      if (t) t.textContent = (open ? '▾' : '▸') + ' 类目配置（高级 · 可选展开）';
+      if (open) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    function toggleCatFold() {
+      const box = document.getElementById('settingsCatBox');
+      if (!box) return;
+      setCatFold(box.style.display === 'none');
     }
     // 兼容保留：老代码/快照里可能仍调用 switchSettingsTab，这里做安全空实现 + 滚动定位
     function switchSettingsTab(tab) {
-      const id = (tab === 'cat') ? 'settingsCatBox' : 'settingsNavBox';
-      const box = document.getElementById(id);
+      if (tab === 'cat') { setCatFold(true); return; }
+      const box = document.getElementById('settingsNavBox');
       if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     // UI改造#9：目录布局编辑器与侧边栏实际导航结构一一对应
     //  · 主目录 = navStructure 里的 group（第一组无标题＝主导航区，第二组＝「快捷工具」）
     //  · 子目录 = group.items（type: page 内部页面 / link 外部链接），并直接标出跳转目标
     function navItemTargetText(it) {
+      if (it && it.virtual) return it.hint || '🏷️ 类目';
       if (it.type === 'link') return '🔗 ' + (it.href || '未设置链接');
       return '📄 页面：' + (it.page || '未设置');
+    }
+
+    /* ===== BugFix#4：目录布局支持三级 / 四级（及更深）目录 =====
+       两类下级目录：
+       · 真实子项 item.children —— 用户自建，随 navStructure 持久化，同时渲染进侧边栏
+       · 派生子项 —— 由类目配置实时生成（客户跟进阶段 D1-D10 / 客户来源 / 产品分类 → 品牌），
+         只在布局编辑器里展示，改名即等同于改类目，不写入 navStructure，避免数据重复与陈旧 */
+    function navIsDerived(id) { return typeof id === 'string' && id.charAt(0) === '~'; }
+    function navDerivedChildren(it) {
+      if (!it || it.virtual || it.type === 'link') return [];
+      const page = it.page || it.id;
+      const out = [];
+      if (page === 'customers') {
+        out.push({
+          id: '~grp~stages', title: '客户跟进阶段', virtual: true, fixed: true,
+          addKind: 'stage', addIndex: -1, addLabel: '新增跟进阶段',
+          hint: '🏷️ 类目 · 共 ' + ((categories.stages || []).length) + ' 个阶段',
+          children: (categories.stages || []).map(function (s, i) {
+            return { id: '~stage~' + i, title: s.text, virtual: true, hint: '🏷️ 阶段代码：' + s.value };
+          })
+        });
+        out.push({
+          id: '~grp~sources', title: '客户来源', virtual: true, fixed: true,
+          addKind: 'source', addIndex: -1, addLabel: '新增客户来源',
+          hint: '🏷️ 类目 · 共 ' + ((categories.sources || []).length) + ' 个来源',
+          children: (categories.sources || []).map(function (s, i) {
+            return { id: '~source~' + i, title: s, virtual: true, hint: '🏷️ 来源渠道' };
+          })
+        });
+      } else if (page === 'products') {
+        out.push({
+          id: '~grp~cats', title: '产品分类', virtual: true, fixed: true,
+          addKind: 'cat', addIndex: -1, addLabel: '新增产品分类',
+          hint: '🏷️ 类目 · 共 ' + ((categories.categories || []).length) + ' 个分类',
+          children: (categories.categories || []).map(function (c, i) {
+            return {
+              id: '~cat~' + i, title: c.text, virtual: true,
+              addKind: 'brand', addIndex: i, addLabel: '新增品牌',
+              hint: '🏷️ 分类代码：' + c.value,
+              children: (c.children || []).map(function (b, j) {
+                return { id: '~brand~' + i + '~' + j, title: b.text, virtual: true, hint: '🔖 品牌代码：' + b.value };
+              })
+            };
+          })
+        });
+      }
+      return out;
+    }
+    function navChildrenOf(it) {
+      const real = (it && Array.isArray(it.children)) ? it.children : [];
+      return (it && it.virtual) ? real : real.concat(navDerivedChildren(it));
+    }
+    // 派生节点 id 形如 ~stage~0 / ~source~3 / ~cat~1 / ~brand~1~2
+    function navDerivedParse(id) {
+      const p = String(id).split('~');
+      return { kind: p[1] || '', a: parseInt(p[2], 10), b: parseInt(p[3], 10) };
+    }
+    function navDerivedList(kind, a) {
+      if (kind === 'stage') return categories.stages || (categories.stages = []);
+      if (kind === 'source') return categories.sources || (categories.sources = []);
+      if (kind === 'cat') return categories.categories || (categories.categories = []);
+      if (kind === 'brand') {
+        const c = (categories.categories || [])[a];
+        if (!c) return null;
+        return c.children || (c.children = []);
+      }
+      return null;
+    }
+    function navDerivedIndex(r) { return r.kind === 'brand' ? r.b : r.a; }
+    function navDerivedUpdate(id, val) {
+      const r = navDerivedParse(id), list = navDerivedList(r.kind, r.a);
+      if (!list) return;
+      const idx = navDerivedIndex(r), cur = list[idx];
+      if (cur === undefined) return;
+      const t = String(val == null ? '' : val).trim();
+      if (!t) { renderSettingsNav(); return; }
+      if (typeof cur === 'string') list[idx] = t; else cur.text = t;
+      renderSettingsNav();
+    }
+    function navDerivedMove(id, dir) {
+      const r = navDerivedParse(id), list = navDerivedList(r.kind, r.a);
+      if (!list) return;
+      const idx = navDerivedIndex(r), ni = idx + dir;
+      if (idx < 0 || ni < 0 || ni >= list.length) return;
+      const tmp = list[idx]; list[idx] = list[ni]; list[ni] = tmp;
+      renderSettingsNav();
+    }
+    function navDerivedDelete(id) {
+      const r = navDerivedParse(id), list = navDerivedList(r.kind, r.a);
+      if (!list) return;
+      const idx = navDerivedIndex(r);
+      if (idx < 0 || idx >= list.length) return;
+      if (!confirm('确定删除该类目项？（点「保存设置」后生效）')) return;
+      list.splice(idx, 1);
+      renderSettingsNav();
+    }
+    function navDerivedAdd(kind, a) {
+      const raw = prompt('请输入名称：');
+      if (!raw || !raw.trim()) return;
+      const name = raw.trim();
+      if (kind === 'stage') {
+        const list = categories.stages || (categories.stages = []);
+        list.push({ value: 'D' + (list.length + 1), text: name });
+      } else if (kind === 'source') {
+        (categories.sources || (categories.sources = [])).push(name);
+      } else if (kind === 'cat') {
+        (categories.categories || (categories.categories = [])).push({ value: 'c' + Date.now(), text: name, children: [] });
+      } else if (kind === 'brand') {
+        const c = (categories.categories || [])[a];
+        if (!c) return;
+        (c.children || (c.children = [])).push({ value: 'b' + Date.now(), text: name });
+      }
+      renderSettingsNav();
+    }
+    // 在 group.items 树里递归查找条目 / 查找其所在的数组
+    function navFindItemDeep(list, iid) {
+      if (!Array.isArray(list)) return null;
+      for (let i = 0; i < list.length; i++) {
+        if (list[i].id === iid) return list[i];
+        const f = navFindItemDeep(list[i].children, iid);
+        if (f) return f;
+      }
+      return null;
+    }
+    function navFindListOf(list, iid) {
+      if (!Array.isArray(list)) return null;
+      for (let i = 0; i < list.length; i++) if (list[i].id === iid) return list;
+      for (let i = 0; i < list.length; i++) {
+        const f = navFindListOf(list[i].children, iid);
+        if (f) return f;
+      }
+      return null;
+    }
+    function navLevelLabel(d) {
+      return d === 2 ? '子目录' : d === 3 ? '三级目录' : d === 4 ? '四级目录'
+        : d === 5 ? '五级目录' : ('第' + d + '级目录');
+    }
+    function navJsStr(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+    // 递归渲染一行 + 其所有下级（用缩进而非 DOM 嵌套，保持 .layout-item 的 flex 布局不被破坏）
+    function renderNavItemRow(it, depth, gid) {
+      const pad = 12 + (depth - 2) * 22;
+      const virt = !!it.virtual;
+      const g = navJsStr(gid), iid = navJsStr(it.id);
+      const icons = virt ? '' : '<div class="icon-pick">' + ICON_OPTIONS.map(function (ic) {
+        return '<span class="icon-opt' + (it.icon === ic ? ' active' : '')
+          + '" onclick="layoutSetIcon(\'' + g + '\',\'' + iid + '\',\'' + ic + '\')">' + ic + '</span>';
+      }).join('') + '</div>';
+      const ops = it.fixed ? '' : (
+        '<button class="layout-btn" onclick="layoutMoveItem(\'' + g + '\',\'' + iid + '\',-1)" title="上移">↑</button>'
+        + '<button class="layout-btn" onclick="layoutMoveItem(\'' + g + '\',\'' + iid + '\',1)" title="下移">↓</button>'
+        + '<button class="layout-btn danger" onclick="layoutDeleteItem(\'' + g + '\',\'' + iid + '\')">删除</button>'
+      );
+      const target = escapeHtml(navItemTargetText(it));
+      const row = '<div class="layout-item' + (virt ? ' lv-virtual' : '') + '" style="padding-left:' + pad + 'px;">'
+        + '<span class="layout-level lv' + Math.min(depth, 5) + '">' + navLevelLabel(depth) + '</span>'
+        + icons
+        + '<input type="text" class="layout-item-title" value="' + escapeHtml(it.title)
+        + '" onchange="layoutUpdateItem(\'' + g + '\',\'' + iid + '\',this.value)">'
+        + '<span class="layout-target" title="' + target + '">' + target + '</span>'
+        + ops
+        + '</div>';
+      const kidsHtml = navChildrenOf(it).map(function (k) { return renderNavItemRow(k, depth + 1, gid); }).join('');
+      let addRow = '';
+      if (virt && it.addKind) {
+        addRow = '<div class="layout-item layout-addrow" style="padding-left:' + (pad + 22) + 'px;">'
+          + '<button class="layout-btn" onclick="navDerivedAdd(\'' + navJsStr(it.addKind) + '\',' + (it.addIndex == null ? -1 : it.addIndex) + ')">+ '
+          + escapeHtml(it.addLabel || ('新增' + it.title)) + '</button></div>';
+      } else if (!virt && depth < 5) {
+        addRow = '<div class="layout-item layout-addrow" style="padding-left:' + (pad + 22) + 'px;">'
+          + '<button class="layout-btn" onclick="layoutAddChildItem(\'' + g + '\',\'' + iid + '\')">+ 新增'
+          + navLevelLabel(depth + 1) + '</button></div>';
+      }
+      return row + kidsHtml + addRow;
     }
     function renderSettingsNav() {
       const box = document.getElementById('settingsNavBox');
       if (!box) return;
-      const total = navStructure.reduce(function (s, g) { return s + (g.items || []).length; }, 0);
-      const hint = '<p class="layout-hint">下方结构与左侧边栏「实际导航」完全一致，共 ' + navStructure.length + ' 个主目录 / ' + total + ' 个子目录。'
-        + '主目录标题留空表示不显示分组标题（即侧边栏顶部的主导航区）；子目录可改名、换图标、调顺序、删除，'
-        + '并会标出其跳转目标（内部页面或外部链接）。修改后点「保存设置」生效。</p>';
+      // BugFix#4：统计各层级数量（含派生的三级 / 四级目录）
+      let cnt2 = 0, cntDeep = 0;
+      const countTree = function (list, d) {
+        (list || []).forEach(function (x) {
+          if (d === 2) cnt2++; else cntDeep++;
+          countTree(navChildrenOf(x), d + 1);
+        });
+      };
+      navStructure.forEach(function (g) { countTree(g.items || [], 2); });
+      const hint = '<p class="layout-hint">下方结构与左侧边栏「实际导航」完全一致，共 ' + navStructure.length + ' 个主目录 / '
+        + cnt2 + ' 个子目录 / ' + cntDeep + ' 个三级及以下目录。'
+        + '主目录标题留空表示不显示分组标题（即侧边栏顶部的主导航区）；每一级都可改名、调顺序、删除，'
+        + '并可用「+ 新增下级目录」继续往下加层。带「🏷️ 类目」标记的层级来自类目数据'
+        + '（客户跟进阶段 D1-D10 / 客户来源 / 产品分类 → 品牌），在这里改名即等同于修改类目。修改后点「保存设置」生效。</p>';
       box.innerHTML = hint + navStructure.map((g, gi) => {
         const collapsed = navCollapse[g.id] ? ' style="display:none;"' : '';
         const isMainNav = !g.title;
-        const itemsHtml = (g.items || []).map((it) => {
-          const icons = ICON_OPTIONS.map(ic => `<span class="icon-opt${it.icon === ic ? ' active' : ''}" onclick="layoutSetIcon('${g.id}','${it.id}','${ic}')">${ic}</span>`).join('');
-          return `
-          <div class="layout-item">
-            <span class="layout-level lv2">子目录</span>
-            <div class="icon-pick">${icons}</div>
-            <input type="text" class="layout-item-title" value="${escapeHtml(it.title)}" onchange="layoutUpdateItem('${g.id}','${it.id}',this.value)">
-            <span class="layout-target" title="${escapeHtml(navItemTargetText(it))}">${escapeHtml(navItemTargetText(it))}</span>
-            <button class="layout-btn" onclick="layoutMoveItem('${g.id}','${it.id}',-1)" title="上移">↑</button>
-            <button class="layout-btn" onclick="layoutMoveItem('${g.id}','${it.id}',1)" title="下移">↓</button>
-            <button class="layout-btn danger" onclick="layoutDeleteItem('${g.id}','${it.id}')">删除</button>
-          </div>`;
-        }).join('');
+        const itemsHtml = (g.items || []).map(function (it) { return renderNavItemRow(it, 2, g.id); }).join('');
         return `
           <div class="layout-editor-group">
             <div class="layout-group-header">
@@ -6391,9 +6603,11 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
       }).join('') + '<button class="btn btn-secondary" onclick="layoutAddGroup()" style="margin-top:8px;">+ 新增主目录</button>';
     }
     function layoutToggleGroup(gid) { navCollapse[gid] = !navCollapse[gid]; renderSettingsNav(); }
+    // BugFix#4：以下条目操作全部改为「递归查找 + 派生节点分流」，以支持三级/四级目录
     function layoutSetIcon(gid, iid, ic) {
+      if (navIsDerived(iid)) return;
       const g = navStructure.find(x => x.id === gid); if (!g) return;
-      const it = g.items.find(x => x.id === iid); if (it) it.icon = ic;
+      const it = navFindItemDeep(g.items, iid); if (it) it.icon = ic;
       renderSettingsNav();
     }
     function layoutUpdateGroup(gid, title) {
@@ -6420,25 +6634,56 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
       renderSettingsNav();
     }
     function layoutUpdateItem(gid, iid, title) {
+      if (navIsDerived(iid)) { navDerivedUpdate(iid, title); return; }
       const g = navStructure.find(x => x.id === gid);
       if (!g) return;
-      const it = g.items.find(x => x.id === iid);
-      if (it) it.title = title.trim();
+      const it = navFindItemDeep(g.items, iid);
+      if (it) it.title = String(title == null ? '' : title).trim();
     }
     function layoutMoveItem(gid, iid, dir) {
+      if (navIsDerived(iid)) { navDerivedMove(iid, dir); return; }
       const g = navStructure.find(x => x.id === gid);
       if (!g) return;
-      const idx = g.items.findIndex(x => x.id === iid);
+      const list = navFindListOf(g.items, iid);
+      if (!list) return;
+      const idx = list.findIndex(x => x.id === iid);
       if (idx < 0) return;
       const newIdx = idx + dir;
-      if (newIdx < 0 || newIdx >= g.items.length) return;
-      [g.items[idx], g.items[newIdx]] = [g.items[newIdx], g.items[idx]];
+      if (newIdx < 0 || newIdx >= list.length) return;
+      [list[idx], list[newIdx]] = [list[newIdx], list[idx]];
       renderSettingsNav();
     }
     function layoutDeleteItem(gid, iid) {
-      if (!confirm('确定删除该子目录？')) return;
+      if (navIsDerived(iid)) { navDerivedDelete(iid); return; }
       const g = navStructure.find(x => x.id === gid);
-      if (g) g.items = g.items.filter(x => x.id !== iid);
+      if (!g) return;
+      const list = navFindListOf(g.items, iid);
+      if (!list) return;
+      const idx = list.findIndex(x => x.id === iid);
+      if (idx < 0) return;
+      const kidCount = (list[idx].children || []).length;
+      if (!confirm(kidCount ? ('确定删除该目录及其下 ' + kidCount + ' 个下级目录？') : '确定删除该目录？')) return;
+      list.splice(idx, 1);
+      renderSettingsNav();
+    }
+    // BugFix#4：在任意条目下新增下一级目录（三级 / 四级 / 五级）
+    function layoutAddChildItem(gid, iid) {
+      if (navIsDerived(iid)) return;
+      const g = navStructure.find(x => x.id === gid);
+      if (!g) return;
+      const parent = navFindItemDeep(g.items, iid);
+      if (!parent) return;
+      const title = prompt('请输入新下级目录名称：');
+      if (!title || !title.trim()) return;
+      if (!Array.isArray(parent.children)) parent.children = [];
+      const asLink = confirm('是否打开外部链接？\n· 确定 = 填入链接地址\n· 取消 = 作为内部页面');
+      if (asLink) {
+        const url = prompt('请输入链接地址（含 https://）：', 'https://');
+        if (!url) return;
+        parent.children.push({ id: 'i' + Date.now(), title: title.trim(), icon: ICON_OPTIONS[0], type: 'link', href: url, children: [] });
+      } else {
+        parent.children.push({ id: 'i' + Date.now(), title: title.trim(), icon: ICON_OPTIONS[0], type: 'page', page: parent.page || 'dashboard', children: [] });
+      }
       renderSettingsNav();
     }
     function layoutAddItem(gid) {
@@ -6549,11 +6794,19 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
 
     // ================= 权限管理（分享只读 / 管理员可编辑） =================
     function canEdit() { return !isReadOnly(); }
+    // BugFix#1：原实现只要 perm.enabled=true 就一律只读，导致「启用过权限但还没配管理员」的
+    // 数据（Firebase 里的历史残留）把创建者自己也锁在门外，且任何操作都只能弹 alert，无法自救。
+    // 新逻辑：分享快照仍然默认只读；正式工作台在「未配置任何管理员」时自动授予本会话管理员身份。
     function isReadOnly() {
       if (sessionAdmin) return false;
-      if (appData.perm && appData.perm.enabled) return true;
-      if (window.__SHARE__) return true;
-      return false;
+      if (window.__SHARE__) return true;            // 导出的分享快照：默认只读，需口令解锁
+      const p = appData && appData.perm;
+      if (!p || !p.enabled) return false;           // 未启用访问权限 → 可编辑
+      if (!Array.isArray(p.admins) || !p.admins.length) {
+        sessionAdmin = '创建者';                     // 启用了权限但没有任何管理员 → 首访/创建者，自动放行
+        return false;
+      }
+      return true;                                  // 已配置管理员 → 非管理员只读，需 unlockAdmin() 解锁
     }
     // UI改造#10：权限面板容器从「设置弹窗」迁到「团队权限弹窗」（teamPermBox），保留旧 id 兼容
     function renderPerm() {
@@ -6582,7 +6835,9 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
       document.body.classList.toggle('readonly', ro);
       document.body.classList.toggle('share-mode', !!window.__SHARE__);
       const ub = document.getElementById('unlockBtn');
-      if (ub) ub.style.display = (appData.perm && appData.perm.enabled) ? 'inline-flex' : 'none';
+      // BugFix#1：已经是管理员（或自动放行）时不再显示「解锁」按钮，避免误导
+      if (ub) ub.style.display = (!sessionAdmin && appData.perm && appData.perm.enabled
+        && Array.isArray(appData.perm.admins) && appData.perm.admins.length) ? 'inline-flex' : 'none';
       if (window.__SHARE__) { const sb = document.getElementById('sidebar'); if (sb) sb.style.display = 'none'; }
     }
     function unlockAdmin() {
@@ -6913,13 +7168,16 @@ window.__DATA__ = ${json};
   <div class="modal-overlay" id="settingsModal">
     <div class="modal modal-lg">
       <div class="modal-header">
-        <div class="modal-title">设置 · 目录布局与类目</div>
+        <div class="modal-title">设置 · 目录布局</div>
         <div class="modal-close" onclick="closeModal('settingsModal')">✕</div>
       </div>
       <div class="modal-body">
         <div id="settingsNavBox" class="settings-panel"></div>
-        <div class="layout-section-t">🏷️ 类目配置（跟进阶段 / 产品分类 / 客户来源）</div>
-        <div id="settingsCatBox" class="settings-panel"></div>
+        <!-- BugFix#5：独立的「类目配置」区块已收起。跟进阶段 / 客户来源 / 产品分类
+             现在直接作为三级 / 四级目录显示在上方目录布局里；这里仅保留一个默认折叠的
+             高级面板，用于批量增删与旧入口 openSettings('cat') 的兼容。 -->
+        <div class="layout-section-t layout-fold" id="settingsCatFold" onclick="toggleCatFold()">▸ 类目配置（高级 · 可选展开）</div>
+        <div id="settingsCatBox" class="settings-panel" style="display:none;"></div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('settingsModal')">关闭</button>
