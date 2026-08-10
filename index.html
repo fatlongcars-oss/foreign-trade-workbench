@@ -2855,26 +2855,59 @@ ___DATA___
     setConfig: function(cfg){ try { REAL.setItem('fbConfig', JSON.stringify(cfg)); } catch(e){} location.reload(); },
     clearConfig: function(){ try { REAL.removeItem('fbConfig'); } catch(e){} location.reload(); }
   };
-  function setStatus(ok, msg){
+  // ================= 同步状态指示器（连接状态 + 推送状态 二合一） =================
+  // 之前只反映「Firebase 是否连通」，用户无法得知自己的改动到底有没有落到云端。
+  // 现在把推送生命周期（待推送 / 推送中 / 重试中 / 失败）一并可视化，失败时可点击手动重试。
+  var connOk = false;        // Firebase 是否连通
+  var syncPhase = 'idle';    // idle | pushing | retry | ok | error
+  var syncDetail = '';       // 附加说明（作为 tooltip）
+  var retryHandler = null;   // 由同步层注入的「手动重试」回调
+
+  function ensurePill(){
+    var el = document.getElementById('fbStatus');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'fbStatus';
+      el.style.cssText = 'position:fixed;left:16px;bottom:16px;z-index:9997;font-size:12px;line-height:1.4;padding:6px 10px;border-radius:8px;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.3);transition:background .18s ease;-webkit-user-select:none;user-select:none;max-width:46vw;';
+      el.onclick = function(){
+        if (syncPhase === 'error' && typeof retryHandler === 'function') { retryHandler(); return; }
+        if (!connOk) { var b = document.getElementById('fbConfigBtn'); if (b) b.click(); }
+      };
+      (document.body || document.documentElement).appendChild(el);
+    }
+    return el;
+  }
+  function renderPill(){
     try {
-      var el = document.getElementById('fbStatus');
-      if (!el) {
-        el = document.createElement('div');
-        el.id = 'fbStatus';
-        el.style.cssText = 'position:fixed;left:16px;bottom:16px;z-index:9997;font-size:12px;padding:6px 10px;border-radius:8px;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.3);';
-        (document.body || document.documentElement).appendChild(el);
+      var el = ensurePill();
+      var bg = '#16a34a', txt = '🟢 已同步（云端最新）', clickable = false;
+      if (!connOk) {
+        bg = '#dc2626'; txt = '🔴 仅本地（未连协同）'; clickable = true;
+        var b1 = document.getElementById('fbConfigBtn'); if (b1) b1.style.display = 'block';
+      } else {
+        var b2 = document.getElementById('fbConfigBtn'); if (b2) b2.style.display = 'none';
+        if (syncPhase === 'pushing') { bg = '#2563eb'; txt = '🔄 同步中…'; }
+        else if (syncPhase === 'retry') { bg = '#d97706'; txt = '🔄 同步重试中…'; }
+        else if (syncPhase === 'error') { bg = '#dc2626'; txt = '🔴 同步失败 · 点击重试'; clickable = true; }
       }
-      if (ok) { el.style.background = '#16a34a'; el.textContent = '🟢 已同步（多人实时）'; var btn = document.getElementById('fbConfigBtn'); if (btn) btn.style.display = 'none'; }
-      else { el.style.background = '#dc2626'; el.textContent = '🔴 仅本地（未连协同）'; var btn2 = document.getElementById('fbConfigBtn'); if (btn2) btn2.style.display = 'block'; }
-      if (msg) el.title = msg;
+      el.style.background = bg;
+      el.textContent = txt;
+      el.style.cursor = clickable ? 'pointer' : 'default';
+      el.title = syncDetail || (connOk ? '改动已实时同步到云端' : 'Firebase 未连接，当前仅本地保存');
     } catch(e){}
   }
+  function setStatus(ok, msg){ connOk = !!ok; if (msg != null) syncDetail = msg; renderPill(); }
+  function setSync(phase, detail){ syncPhase = phase; syncDetail = detail || ''; renderPill(); }
   function showBanner(){
     var b = document.getElementById('fbBanner');
     if (b) b.style.display = 'block';
   }
   function localMode(){
-    window.__SYNC__ = { startPolling: function(){}, isOnline: function(){ return false; } };
+    window.__SYNC__ = {
+      startPolling: function(){}, isOnline: function(){ return false; },
+      markUserEdit: function(){}, flush: function(){}, retry: function(){},
+      state: function(){ return { conn: false, phase: 'idle', dirty: false, detail: '未连接云端' }; }
+    };
     if (!fbConfig) { setTimeout(showBanner, 600); }
     setTimeout(function(){ setStatus(false, 'Firebase 未加载或配置缺失'); }, 800);
   }
@@ -2913,48 +2946,313 @@ ___DATA___
       }
       return { main: out, nav: mo(remote.nav, local.nav), cat: mo(remote.cat, local.cat), title: mo(remote.title, local.title) };
     }
-    function doPush(){
-      var local = localState();
-      ref.transaction(function(cur){
-        if (!cur) return local;
-        return mergeState(local, cur);
-      }, function(err){ if (err) console.error('FB push error', err); });
-    }
-    var saveTimer = null;
+    // ================= 增量推送引擎（替代整节点 transaction） =================
+    // 旧实现：ref.transaction(整个 /state) —— /state 含 main(全部客户+详情+话术)+nav+cat+title，
+    //         体积可达数 MB，transaction 必须整读整写，极易超时/失败；且失败只 console.error，
+    //         用户毫无感知，改动仅留在内存，刷新即丢。
+    // 新实现：维护一份「服务端基线快照」，每次推送只 update 真正变化的路径
+    //         （通常只有 main/customers/<idx> 一条），payload 从 MB 级降到 KB 级。
+    var SYNC_KEYS = { 'foreignTradeWorkbench_v1':'main', 'wt_nav_v1':'nav', 'wt_categories_v1':'cat', 'wt_titles_v1':'title' };
+    var MAX_RETRY = 3;
+    var base = null;                 // 服务端基线快照 { cust, order, rest, nav, cat, title }
+    var saveTimer = null;            // 防抖计时器
+    var retryTimer = null;           // 重试计时器
+    var mirrorTimer = null;          // 本地落盘计时器
     var remoteReady = false;
     var pendingPushAfterSync = false;
-    function schedulePush(){
-      if (!remoteReady) { pendingPushAfterSync = true; return; }
-      if (saveTimer) return;
-      saveTimer = setTimeout(doPush, 800);
+    var pushing = false;
+    var pushAgain = false;
+    var retryCount = 0;
+    var localDirty = false;          // 存在尚未确认同步到云端的本地改动
+    var dirtyVersion = 0;            // 每次本地写入自增，用于判断推送期间是否又有新改动
+    var userEditPending = false;     // 本轮推送由用户主动编辑触发 → 需要 toast 回执
+
+    function safeStr(o){ try { return JSON.stringify(o); } catch(e){ return ''; } }
+    function plain(o){ try { var s = JSON.stringify(o); return s === undefined ? null : JSON.parse(s); } catch(e){ return null; } }
+    function objToArr(o){
+      // Firebase 稀疏数组会退化成对象，读回时还原为数组
+      if (Array.isArray(o)) return o;
+      if (!o || typeof o !== 'object') return [];
+      var out = [];
+      Object.keys(o).sort(function(a,b){ return (parseInt(a,10)||0) - (parseInt(b,10)||0); })
+        .forEach(function(k){ if (o[k] != null) out.push(o[k]); });
+      return out;
     }
+
+    // 把状态拆成「逐客户序列化 + 其余字段序列化」，用于 O(变更量) 的差分比较
+    function snapshotOf(state){
+      var main = (state && state.main) || {};
+      var list = Array.isArray(main.customers) ? main.customers : [];
+      var cust = {}, order = [];
+      for (var i = 0; i < list.length; i++) {
+        var c = list[i];
+        var id = (c && c.id != null) ? '' + c.id : null;
+        order.push(id);
+        if (id != null) cust[id] = safeStr(c);
+      }
+      var rest = {};
+      for (var k in main) { if (Object.prototype.hasOwnProperty.call(main, k) && k !== 'customers') rest[k] = main[k]; }
+      return {
+        cust: cust, order: order, rest: safeStr(rest),
+        nav: safeStr((state && state.nav) || {}),
+        cat: safeStr((state && state.cat) || {}),
+        title: safeStr((state && state.title) || {})
+      };
+    }
+
+    // 对比基线，生成 Firebase multi-path update 载荷
+    function buildUpdates(state, snap){
+      var updates = {};
+      var main = (state && state.main) || {};
+      var list = Array.isArray(main.customers) ? main.customers : [];
+      // 1) 客户表：与基线的 id 顺序完全对齐 → 逐条增量；否则（增删/重排）整表覆盖
+      var aligned = !!(base && base.order && base.order.length === snap.order.length);
+      if (aligned) {
+        for (var i = 0; i < snap.order.length; i++) {
+          if (base.order[i] !== snap.order[i]) { aligned = false; break; }
+        }
+      }
+      if (aligned) {
+        for (var j = 0; j < snap.order.length; j++) {
+          var id = snap.order[j];
+          if (id == null) continue;
+          if (base.cust[id] !== snap.cust[id]) updates['main/customers/' + j] = plain(list[j]);
+        }
+      } else {
+        updates['main/customers'] = plain(list) || [];
+      }
+      // 2) main 下的其它字段（todos / products / social / ver …）
+      if (!base || base.rest !== snap.rest) {
+        var cur = {};
+        try { cur = JSON.parse(snap.rest) || {}; } catch(e){ cur = {}; }
+        for (var rk in cur) { if (Object.prototype.hasOwnProperty.call(cur, rk)) updates['main/' + rk] = plain(cur[rk]); }
+        if (base && base.rest) {
+          try {
+            var old = JSON.parse(base.rest) || {};
+            for (var okk in old) {
+              if (Object.prototype.hasOwnProperty.call(old, okk) && !Object.prototype.hasOwnProperty.call(cur, okk)) updates['main/' + okk] = null;
+            }
+          } catch(e){}
+        }
+      }
+      // 3) nav / cat / title（体积小，整节点覆盖即可）
+      ['nav','cat','title'].forEach(function(k){
+        if (!base || base[k] !== snap[k]) updates[k] = plain((state && state[k]) || {}) || {};
+      });
+      return updates;
+    }
+
+    function doPush(){
+      if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+      if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+      if (!remoteReady) { pendingPushAfterSync = true; return; }
+      if (pushing) { pushAgain = true; return; }
+      var state, snap, updates;
+      try {
+        state = localState();
+        snap = snapshotOf(state);
+        updates = buildUpdates(state, snap);
+      } catch(e){
+        console.error('FB build updates failed', e);
+        setSync('error', '本地数据解析失败：' + ((e && e.message) || e));
+        notifyPushResult(false, e);
+        return;
+      }
+      var keys = Object.keys(updates);
+      if (!keys.length) {
+        // 与云端已一致（常见于自己推送后的回包）
+        localDirty = false;
+        base = snap;
+        setSync('ok');
+        notifyPushResult(true);
+        return;
+      }
+      var ver = dirtyVersion;
+      pushing = true;
+      setSync('pushing', '正在推送 ' + keys.length + ' 处改动…');
+      ref.update(updates).then(function(){
+        pushing = false;
+        retryCount = 0;
+        base = snap;
+        if (dirtyVersion === ver) localDirty = false;
+        setSync('ok');
+        notifyPushResult(true);
+        scheduleMirror();
+        if (pushAgain) { pushAgain = false; schedulePush(); }
+      }).catch(function(err){
+        pushing = false;
+        pushAgain = false;
+        handlePushError(err);
+      });
+    }
+
+    function handlePushError(err){
+      console.error('FB push error', err);
+      scheduleMirror();   // 失败也要落盘，保证「刷新页面」不丢改动
+      if (retryCount < MAX_RETRY) {
+        retryCount++;
+        var delay = 1000 * Math.pow(2, retryCount - 1);   // 1s → 2s → 4s
+        setSync('retry', '云端同步失败，第 ' + retryCount + '/' + MAX_RETRY + ' 次重试（' + (delay / 1000) + 's 后）');
+        if (retryTimer) clearTimeout(retryTimer);
+        retryTimer = setTimeout(function(){ retryTimer = null; doPush(); }, delay);
+      } else {
+        setSync('error', '云端同步失败：' + ((err && (err.message || err.code)) || '未知错误') + '（改动已暂存本地，点击可手动重试）');
+        notifyPushResult(false, err);
+      }
+    }
+
+    function manualRetry(){
+      retryCount = 0;
+      if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+      setSync('pushing', '手动重试中…');
+      doPush();
+    }
+    retryHandler = manualRetry;
+
+    // 只有用户主动编辑触发的推送才回执 toast，避免后台自动推送刷屏
+    function notifyPushResult(ok, err){
+      if (!userEditPending) return;
+      userEditPending = false;
+      try {
+        if (typeof window.toast !== 'function') return;
+        if (ok) window.toast('✅ 已同步到云端');
+        else window.toast('⚠️ 保存成功但云端同步失败（数据不会丢失，联网后会自动重试）');
+      } catch(e){}
+    }
+
+    function schedulePush(){
+      localDirty = true;
+      dirtyVersion++;
+      retryCount = 0;
+      if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+      scheduleMirror();
+      if (!remoteReady) { pendingPushAfterSync = true; setSync('pushing', '等待云端连接…'); return; }
+      if (pushing) { pushAgain = true; return; }
+      if (saveTimer) return;
+      setSync('pushing', '改动已保存，正在推送…');
+      saveTimer = setTimeout(function(){ saveTimer = null; doPush(); }, 800);
+    }
+
+    // 本地落盘镜像：把待同步数据写回真实 localStorage，
+    // 避免「推送失败 + 刷新页面」导致改动彻底丢失（配额不足时静默跳过）。
+    function mirrorNow(){
+      Object.keys(SYNC_KEYS).forEach(function(k){
+        try { if (MEM[k] != null) REAL.setItem(k, MEM[k]); } catch(e){}
+      });
+    }
+    function scheduleMirror(){
+      if (mirrorTimer) return;
+      mirrorTimer = setTimeout(function(){ mirrorTimer = null; mirrorNow(); }, 2000);
+    }
+
+    // 三方合并：base（上次已知的云端状态）+ 本地未推送改动 + 远端最新
+    // 只有「本地相对基线确实改过」的条目才压过远端，其余一律采信远端；
+    // 否则会把别人同时段的改动顶掉，还会在下次推送时把陈旧数据写回云端。
+    function threeWayMerge(local, remote){
+      var oldBase = base;
+      var baseCust = (oldBase && oldBase.cust) || null;
+      var lMain = (local && local.main) || {};
+      var rMain = (remote && remote.main) || {};
+      var lList = Array.isArray(lMain.customers) ? lMain.customers : [];
+      var rList = Array.isArray(rMain.customers) ? rMain.customers : [];
+      var lById = {}, lStr = {};
+      lList.forEach(function(c){ if (c && c.id != null) { var k = '' + c.id; lById[k] = c; lStr[k] = safeStr(c); } });
+
+      var out = [], seen = {};
+      rList.forEach(function(rc){
+        if (!rc || rc.id == null) { out.push(rc); return; }
+        var k = '' + rc.id; seen[k] = 1;
+        if (!Object.prototype.hasOwnProperty.call(lById, k)) {
+          // 本地没有这条：基线里也没有 → 别人新增的，收下；基线里有 → 本地删过，保持删除
+          if (!baseCust || !Object.prototype.hasOwnProperty.call(baseCust, k)) out.push(rc);
+          return;
+        }
+        var changedLocally = !baseCust || baseCust[k] !== lStr[k];
+        out.push(changedLocally ? lById[k] : rc);
+      });
+      lList.forEach(function(c){
+        if (!c || c.id == null) return;
+        var k = '' + c.id;
+        if (seen[k]) return;
+        // 远端没有：基线里也没有 → 本地新增，保留；基线里有 → 别人删的，跟随删除
+        if (!baseCust || !Object.prototype.hasOwnProperty.call(baseCust, k)) out.push(c);
+      });
+
+      // main 下其它字段（todos / products / social / ver …）：本地改过的用本地，其余用远端
+      var oldRest = {};
+      try { oldRest = (oldBase && oldBase.rest) ? (JSON.parse(oldBase.rest) || {}) : {}; } catch(e){ oldRest = {}; }
+      var mainOut = {};
+      for (var rk in rMain) { if (Object.prototype.hasOwnProperty.call(rMain, rk) && rk !== 'customers') mainOut[rk] = rMain[rk]; }
+      for (var lk in lMain) {
+        if (!Object.prototype.hasOwnProperty.call(lMain, lk) || lk === 'customers') continue;
+        if (safeStr(lMain[lk]) !== safeStr(oldRest[lk])) mainOut[lk] = lMain[lk];
+      }
+      mainOut.customers = out;
+
+      function pick(key){
+        var lv = (local && local[key]) || {};
+        var rv = remote && remote[key];
+        if (!oldBase || safeStr(lv) !== oldBase[key]) return lv;   // 本地改过 → 本地优先
+        return rv != null ? rv : lv;
+      }
+      return { main: mainOut, nav: pick('nav'), cat: pick('cat'), title: pick('title') };
+    }
+
+    // 只覆盖远端确实存在的键，避免远端缺字段时把本地数据清空
+    function writeMem(state){
+      if (state && state.main)  MEM['foreignTradeWorkbench_v1'] = safeStr(state.main);
+      if (state && state.nav)   MEM['wt_nav_v1']                = safeStr(state.nav);
+      if (state && state.cat)   MEM['wt_categories_v1']         = safeStr(state.cat);
+      if (state && state.title) MEM['wt_titles_v1']             = safeStr(state.title);
+    }
+
     function onValue(snap){
       var val = snap.val();
+      online = true;
+      remoteReady = true;
       if (!val) {
         // 空库同样属于「已连通」：必须点亮状态灯，否则首个用户会误判为未连协同
-        online = true;
         setStatus(true);
-        remoteReady = true;
+        base = null;
         doPush();
         if (pendingPushAfterSync) { pendingPushAfterSync = false; schedulePush(); }
         return;
       }
-      if (val.main) MEM['foreignTradeWorkbench_v1'] = JSON.stringify(val.main);
-      if (val.nav) MEM['wt_nav_v1'] = JSON.stringify(val.nav);
-      if (val.cat) MEM['wt_categories_v1'] = JSON.stringify(val.cat);
-      if (val.title) MEM['wt_titles_v1'] = JSON.stringify(val.title);
-      online = true;
-      setStatus(true);
-      remoteReady = true;
+      var remote = { main: val.main, nav: val.nav, cat: val.cat, title: val.title };
+      if (remote.main && !Array.isArray(remote.main.customers)) remote.main.customers = objToArr(remote.main.customers);
+      if (localDirty) {
+        // 关键修复：本地还有未确认同步的改动时，绝不能被远端整包覆盖。
+        // 否则用户刚填的「下一行动」会在 800ms 防抖窗口内被自己/他人的监听回包抹掉。
+        try { writeMem(threeWayMerge(localState(), remote)); }
+        catch(e){
+          console.error('FB three-way merge failed, fallback to local-first merge', e);
+          try { writeMem(mergeState(localState(), remote)); } catch(e2){}
+        }
+        base = snapshotOf(remote);
+        setStatus(true);
+        schedulePush();
+      } else {
+        writeMem(remote);
+        base = snapshotOf(remote);
+        setStatus(true);
+        if (syncPhase !== 'error') setSync('ok');
+      }
       if (pendingPushAfterSync) { pendingPushAfterSync = false; schedulePush(); }
       if (window.__onRemoteUpdate) window.__onRemoteUpdate();
     }
-    function onErr(err){ console.error('FB listen error', err); online = false; setStatus(false, '实时监听中断，当前仅本地保存'); }
+    function onErr(err){
+      console.error('FB listen error', err);
+      online = false;
+      setStatus(false, '实时监听中断，当前仅本地保存');
+      if (localDirty) mirrorNow();
+    }
     function installShim(){
+      // 只有参与云同步的 4 个键才触发推送；其它键（会话/UI 偏好等）保持原有的纯内存行为
+      function synced(k){ return Object.prototype.hasOwnProperty.call(SYNC_KEYS, k); }
       var Sh = {
         getItem: function(k){ if (Object.prototype.hasOwnProperty.call(MEM, k)) return MEM[k]; var v = REAL.getItem(k); MEM[k] = v; return v; },
-        setItem: function(k, v){ MEM[k] = String(v); schedulePush(); },
-        removeItem: function(k){ delete MEM[k]; schedulePush(); },
+        setItem: function(k, v){ MEM[k] = String(v); if (synced(k)) schedulePush(); },
+        removeItem: function(k){ delete MEM[k]; if (synced(k)) schedulePush(); },
         clear: function(){ Object.keys(MEM).forEach(function(k){ delete MEM[k]; }); schedulePush(); },
         key: function(i){ return Object.keys(MEM)[i] || null; },
         get length(){ return Object.keys(MEM).length; }
@@ -2967,7 +3265,40 @@ ___DATA___
       installShim();
       ref.on('value', onValue, onErr);
       // 不在此处立即推送：先等首次远程数据到达，避免用本地陈旧数据覆盖共享库
-      window.__SYNC__ = { startPolling: function(){}, isOnline: function(){ return online; } };
+      try {
+        // 网络恢复 / 标签页重新可见 时，若仍有未同步改动立即补推
+        window.addEventListener('online', function(){
+          if (!localDirty) return;
+          setSync('pushing', '网络已恢复，正在补推…');
+          retryCount = 0;
+          doPush();
+        });
+        window.addEventListener('offline', function(){
+          if (localDirty) setSync('error', '网络已断开，改动仅暂存本地（恢复后会自动重试）');
+        });
+        document.addEventListener('visibilitychange', function(){
+          if (!document.hidden && localDirty && !pushing && !saveTimer && !retryTimer) { retryCount = 0; doPush(); }
+        });
+        // 兜底落盘：关页面前把未同步改动同步写回真实 localStorage
+        window.addEventListener('beforeunload', function(){ if (localDirty) mirrorNow(); });
+      } catch(e){}
+      // 未同步守护：重试全部用尽后不至于永久停摆，每 15s 自愈一次
+      setInterval(function(){
+        if (!localDirty || pushing || saveTimer || retryTimer || !remoteReady) return;
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+        retryCount = 0;
+        doPush();
+      }, 15000);
+      window.__SYNC__ = {
+        startPolling: function(){},
+        isOnline: function(){ return online; },
+        markUserEdit: function(){ userEditPending = true; },
+        flush: function(){ retryCount = 0; doPush(); },
+        retry: manualRetry,
+        state: function(){ return { conn: connOk, phase: syncPhase, dirty: localDirty, detail: syncDetail }; }
+      };
+      // 不在此处 renderPill()：连接结果未知时提前画出「仅本地」红条会误导用户，
+      // 交由首个 onValue / onErr 触发首次渲染（与旧行为一致）
       try { window.dispatchEvent(new Event('fb-sync-ready')); } catch(e){}
       if (window.__onRemoteUpdate) window.__onRemoteUpdate();
     }
@@ -3120,6 +3451,12 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
 
     function saveData(data) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    // 标记「本次写入由用户主动编辑触发」：同步层推送结束后会给出成功/失败 toast 回执。
+    // 不调用它也不影响数据落库，只是少一条云端回执提示。
+    function markSyncEdit() {
+      try { if (window.__SYNC__ && window.__SYNC__.markUserEdit) window.__SYNC__.markUserEdit(); } catch (e) {}
     }
 
     function getDefaultData() {
@@ -4487,10 +4824,12 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
       if (f === 'name' || f === 'nextAction' || f === 'level' || f === 'nextContact' || f === 'owner') {
         try { syncCustomerTodo(c); } catch (e) {}
       }
+      markSyncEdit();
       saveData(appData);
       renderCustomers();
       try { renderDashboard(); } catch (e) {}
-      toast('已更新：' + (custDisplayName(c) || '客户') + ' · ' + edFieldLabel(f));
+      // 本地已落库；云端结果由同步层在推送完成后再补一条 toast（✅ 已同步 / ⚠️ 同步失败）
+      toast('已保存：' + (custDisplayName(c) || '客户') + ' · ' + edFieldLabel(f) + '，正在同步…');
     }
     function edFieldLabel(f) {
       return ({ name:'客户名称', country:'国家', stage:'跟进阶段', touchStage:'触达结果', lastContact:'最近联系',
@@ -4587,9 +4926,10 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
         var newVal = el.textContent.trim();
         if (newVal === curVal) { el.innerHTML = restore; return; }
         c[field] = newVal;
+        markSyncEdit();
         saveData(appData);
         el.innerHTML = (newVal || '<span class="ed-empty">—</span>');
-        toast('已更新「' + field + '」');
+        toast('已保存「' + field + '」，正在同步…');
         // 刷新当前视图以同步
         viewCustomer(c.id);
       };
