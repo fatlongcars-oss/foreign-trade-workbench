@@ -1268,6 +1268,59 @@
   #trustLightbox .modal-box{ background:transparent; box-shadow:none; max-width:none; padding:0; }
   #trustLightbox img, #trustLightbox video{ max-width:92vw; max-height:84vh; border-radius:10px; background:#000; display:block; margin:0 auto; }
   #trustLightbox .modal-close{ position:fixed; top:18px; right:22px; font-size:26px; }
+
+  /* ================= UI改造 #9：客户表头列筛选（th-filter） ================= */
+  /* 表头小漏斗图标：默认灰、hover 变蓝、本列有筛选时高亮并显示已选项数 */
+  .cust-scroll table.wide thead th { white-space: nowrap; }
+  .th-filter {
+    display:inline-block; margin-left:4px; cursor:pointer; user-select:none;
+    font-size:11px; line-height:1; font-weight:700; color:#94a3b8;
+    padding:2px 4px; border-radius:5px; vertical-align:middle;
+    transition:color .12s, background .12s;
+  }
+  .th-filter:hover { color:#4f46e5; background:#e0e7ff; }
+  .th-filter.on { color:#4f46e5; background:#e0e7ff; }
+  /* 下拉面板：position:fixed 挂在 body 上，避免被 .cust-scroll 的 overflow 裁切 */
+  .thf-pop {
+    position:fixed; z-index:2800; width:268px; left:-9999px; top:-9999px;
+    background:#fff; border:1px solid var(--border); border-radius:10px;
+    box-shadow:0 12px 36px rgba(15,23,42,.24); display:none; overflow:hidden;
+    font-size:12.5px; color:var(--text-primary);
+  }
+  .thf-pop.open { display:block; }
+  .thf-head { display:flex; align-items:center; gap:8px; padding:9px 12px; background:#f8fafc; border-bottom:1px solid var(--border); }
+  .thf-head b { font-size:12.5px; font-weight:700; }
+  .thf-x { margin-left:auto; cursor:pointer; color:#94a3b8; font-size:16px; line-height:1; padding:0 2px; }
+  .thf-x:hover { color:#ef4444; }
+  .thf-search { padding:8px 10px 2px; }
+  .thf-search input { width:100%; box-sizing:border-box; padding:5px 8px; font-size:12px; border:1px solid var(--border); border-radius:6px; outline:none; }
+  .thf-search input:focus { border-color:#a5b4fc; box-shadow:0 0 0 2px rgba(79,70,229,.12); }
+  .thf-tools { display:flex; align-items:center; gap:4px; padding:7px 10px; border-bottom:1px solid var(--border); }
+  .thf-tools span.thf-act { cursor:pointer; color:#4f46e5; font-size:11.5px; font-weight:600; padding:2px 7px; border-radius:5px; }
+  .thf-tools span.thf-act:hover { background:#eef2ff; }
+  .thf-tools span.thf-cnt { margin-left:auto; color:#94a3b8; font-size:11.5px; }
+  .thf-list { max-height:300px; overflow-y:auto; padding:4px 0; }
+  .thf-list::-webkit-scrollbar { width:8px; }
+  .thf-list::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:8px; }
+  .thf-item { display:flex; align-items:center; gap:8px; padding:5px 12px; cursor:pointer; }
+  .thf-item:hover { background:#f8fafc; }
+  .thf-item.on { background:#eef2ff; color:#4338ca; font-weight:600; }
+  .thf-item i {
+    flex:none; width:14px; height:14px; box-sizing:border-box;
+    border:1px solid #cbd5e1; border-radius:3px; background:#fff;
+    font-style:normal; font-size:10px; line-height:12px; text-align:center; color:#fff;
+  }
+  .thf-item.on i { background:#4f46e5; border-color:#4f46e5; }
+  .thf-item .thf-t { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .thf-item .thf-n { flex:none; color:#94a3b8; font-size:11px; font-weight:600; }
+  .thf-item.on .thf-n { color:#6366f1; }
+  .thf-empty { padding:18px 12px; text-align:center; color:#9ca3af; font-size:12px; }
+  .thf-foot { padding:7px 10px; background:#f8fafc; border-top:1px solid var(--border); display:flex; }
+  .thf-foot button {
+    flex:1; cursor:pointer; border:1px solid var(--border); background:#fff;
+    border-radius:6px; padding:5px 8px; font-size:12px; color:var(--text-secondary);
+  }
+  .thf-foot button:hover { border-color:#a5b4fc; color:#4f46e5; background:#f5f3ff; }
 </style>
 
   <!-- Firebase Realtime Database (Spark 免费) -->
@@ -1855,19 +1908,21 @@
                     <th class="col-ops">操作</th>
                     <!-- UI改造#4d: 新增联系电话列 -->
                     <th class="col-phone">联系电话</th>
-                    <th>国家</th>
-                    <th>跟进阶段</th>
-                    <th>触达结果</th>
-                    <th>最近联系</th>
-                    <th>下次跟进</th>
-                    <th>下一步行动</th>
-                    <th>负责人</th>
-                    <th>等级</th>
-                    <th>来源</th>
-                    <th>线索录入</th>
-                    <th>已加微</th>
-                    <th>已加WA</th>
-                    <th>战败</th>
+                    <!-- UI改造#9a: 触达/跟进四栏（触达结果·最近联系·下次跟进·下一步行动）整体前移到「国家」之后，「跟进阶段」后置 -->
+                    <!-- UI改造#9b: 每个可筛选列表头挂一个 ▽ 图标，点击弹出本列取值筛选面板 -->
+                    <th data-col="country">国家<span class="th-filter" data-thf="country" onclick="event.stopPropagation();openThFilter('country',this)">▽</span></th>
+                    <th data-col="touch">触达结果<span class="th-filter" data-thf="touch" onclick="event.stopPropagation();openThFilter('touch',this)">▽</span></th>
+                    <th data-col="lastContact">最近联系<span class="th-filter" data-thf="lastContact" onclick="event.stopPropagation();openThFilter('lastContact',this)">▽</span></th>
+                    <th data-col="nextContact">下次跟进<span class="th-filter" data-thf="nextContact" onclick="event.stopPropagation();openThFilter('nextContact',this)">▽</span></th>
+                    <th data-col="nextAction">下一步行动<span class="th-filter" data-thf="nextAction" onclick="event.stopPropagation();openThFilter('nextAction',this)">▽</span></th>
+                    <th data-col="stage">跟进阶段<span class="th-filter" data-thf="stage" onclick="event.stopPropagation();openThFilter('stage',this)">▽</span></th>
+                    <th data-col="owner">负责人<span class="th-filter" data-thf="owner" onclick="event.stopPropagation();openThFilter('owner',this)">▽</span></th>
+                    <th data-col="level">等级<span class="th-filter" data-thf="level" onclick="event.stopPropagation();openThFilter('level',this)">▽</span></th>
+                    <th data-col="source">来源<span class="th-filter" data-thf="source" onclick="event.stopPropagation();openThFilter('source',this)">▽</span></th>
+                    <th data-col="leadTime">线索录入<span class="th-filter" data-thf="leadTime" onclick="event.stopPropagation();openThFilter('leadTime',this)">▽</span></th>
+                    <th data-col="wechat">已加微<span class="th-filter" data-thf="wechat" onclick="event.stopPropagation();openThFilter('wechat',this)">▽</span></th>
+                    <th data-col="wa">已加WA<span class="th-filter" data-thf="wa" onclick="event.stopPropagation();openThFilter('wa',this)">▽</span></th>
+                    <th data-col="lost">战败<span class="th-filter" data-thf="lost" onclick="event.stopPropagation();openThFilter('lost',this)">▽</span></th>
                   </tr>
                 </thead>
                 <tbody id="customerTableBody">
@@ -3973,7 +4028,13 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
 
     // ================= 客户管理 =================
     // 顶部筛选栏状态：每个维度是一个数组，空数组 = 全部；点一次=单选，连点多个=多选，再点一次取消
-    const custFilterState = { stage: [], level: [], country: [], owner: [], source: [], touch: [], status: [] };
+    // UI改造#9b：新增 nextAction / lastContact / nextContact / leadTime / wechat / wa / lost 七个维度，
+    // 供「表头 ▽ 列筛选」使用。它们与顶部筛选栏共用同一个 custFilterState，getFilteredCustomers
+    // 用 for…in 遍历全部维度，因此新增 key 会自动参与过滤，无需改动过滤主流程。
+    const custFilterState = {
+      stage: [], level: [], country: [], owner: [], source: [], touch: [], status: [],
+      nextAction: [], lastContact: [], nextContact: [], leadTime: [], wechat: [], wa: [], lost: []
+    };
     let custSearchKey = '';
 
     // ================= UI改造#1：国家 / 市场统一中文唯一称呼 =================
@@ -4171,6 +4232,26 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
       if (n === 1) return '首次触达';
       return '';
     }
+    // ===== UI改造#9b：日期列筛选按「相对今天」的时间桶分组 =====
+    const CUST_DATE_BUCKETS = ['未来', '今天', '本周', '本月', '更早', '（空）'];
+    function custDateBucket(v) {
+      if (!v) return '（空）';
+      const s = String(v).trim();
+      if (!s) return '（空）';
+      // 'YYYY-M-D' 在部分老浏览器里会被当成 UTC，统一换成斜杠按本地时区解析；带时间的 ISO 串保持原样
+      const d = /^\d{4}-\d{1,2}-\d{1,2}$/.test(s) ? new Date(s.replace(/-/g, '/')) : new Date(s);
+      if (isNaN(d.getTime())) return '（空）';
+      const now = new Date();
+      const DAY = 86400000;
+      const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const day0 = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      if (day0 > today0) return '未来';
+      if (day0 === today0) return '今天';
+      const wd = now.getDay() || 7;                       // 周一=1 … 周日=7
+      if (day0 >= today0 - (wd - 1) * DAY) return '本周';
+      if (day0 >= new Date(now.getFullYear(), now.getMonth(), 1).getTime()) return '本月';
+      return '更早';
+    }
     function custMatchDim(c, dim, val) {
       switch (dim) {
         case 'stage':   return c.stage === val;
@@ -4179,6 +4260,14 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
         case 'owner':   return (c.owner || '未分配') === val;
         case 'source':  return (c.source || '未标注') === val;
         case 'touch':   return (custTouchStage(c) || '未触达') === val;
+        // ===== UI改造#9b：表头列筛选新增维度 =====
+        case 'nextAction':  return (c.nextAction || '未安排') === val;
+        case 'lastContact': return custDateBucket(c.lastContact) === val;
+        case 'nextContact': return custDateBucket(c.nextContact) === val;
+        case 'leadTime':    return custDateBucket(c.leadTime) === val;
+        case 'wechat':      return (c.wechatAdded || '否') === val;
+        case 'wa':          return (c.waAdded || '否') === val;
+        case 'lost':        return (c.lost === '是' ? '战败' : '在跟') === val;
         case 'status': {
           if (val === 'wechat')   return c.wechatAdded === '是';
           // UI改造#6: 新增「已加微待通过」筛选项；「未加微」不再把待通过算进去
@@ -4193,6 +4282,15 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
       }
       return true;
     }
+    // 关键词命中判断（抽成独立函数，供 getFilteredCustomers / custFilteredExcept 复用）
+    function custMatchKeyword(c, kw) {
+      if (!kw) return true;
+      const hay = [c.name, c.nameCn, c.country, c.owner, c.assignee, c.source, c.nextAction, c.note,
+                   c.wechatId, c.waId, c.email, c.phoneCn, c.phoneOversea, c.lostReason, c.phone,
+                   custCountryAll(c).join(' '),
+                   c.detail && c.detail.contactText].filter(Boolean).join(' ').toLowerCase();
+      return hay.indexOf(kw) >= 0;
+    }
     function getFilteredCustomers() {
       const kw = custSearchKey.trim().toLowerCase();
       return visibleCustomers().filter(c => {
@@ -4200,14 +4298,20 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
           const sel = custFilterState[dim];
           if (sel.length && !sel.some(v => custMatchDim(c, dim, v))) return false;
         }
-        if (kw) {
-          const hay = [c.name, c.nameCn, c.country, c.owner, c.assignee, c.source, c.nextAction, c.note,
-                       c.wechatId, c.waId, c.email, c.phoneCn, c.phoneOversea, c.lostReason, c.phone,
-                       custCountryAll(c).join(' '),
-                       c.detail && c.detail.contactText].filter(Boolean).join(' ').toLowerCase();
-          if (hay.indexOf(kw) < 0) return false;
+        return custMatchKeyword(c, kw);
+      });
+    }
+    // UI改造#9b：排除某一个维度后的结果集——表头筛选面板用它算「每个候选值还剩多少行」，
+    // 这样勾选本列的 A 之后，本列其它候选值的行数仍按 Excel 的习惯保持可见。
+    function custFilteredExcept(skipDim) {
+      const kw = custSearchKey.trim().toLowerCase();
+      return visibleCustomers().filter(c => {
+        for (const dim in custFilterState) {
+          if (dim === skipDim) continue;
+          const sel = custFilterState[dim];
+          if (sel.length && !sel.some(v => custMatchDim(c, dim, v))) return false;
         }
-        return true;
+        return custMatchKeyword(c, kw);
       });
     }
     function renderCustFilterBar() {
@@ -4348,7 +4452,263 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
       Object.keys(custFilterState).forEach(k => custFilterState[k] = []);
       custSearchKey = '';
       const s = document.getElementById('custSearch'); if (s) s.value = '';
+      closeThFilter();
       renderCustFilterBar(); renderCustomers();
+    }
+
+    /* ================================================================================
+     * UI改造#9b：表头 ▽ 列筛选
+     * 定位：顶部筛选栏（renderCustFilterBar）的「就近快捷入口」。
+     * 二者共用同一份 custFilterState，最终仍然落到 toggleCustFilter / clearCustFilterDim
+     * 的同一套语义（同维度多选=或，跨维度=与），因此不会出现两套互相打架的筛选结果。
+     * ============================================================================== */
+    // 表头 data-thf 值 → custFilterState 维度键 + 面板标题
+    const TH_FILTER_DIMS = {
+      country:     { dim: 'country',     label: '国家' },
+      touch:       { dim: 'touch',       label: '触达结果' },
+      lastContact: { dim: 'lastContact', label: '最近联系' },
+      nextContact: { dim: 'nextContact', label: '下次跟进' },
+      nextAction:  { dim: 'nextAction',  label: '下一步行动' },
+      stage:       { dim: 'stage',       label: '跟进阶段' },
+      owner:       { dim: 'owner',       label: '负责人' },
+      level:       { dim: 'level',       label: '等级' },
+      source:      { dim: 'source',      label: '来源' },
+      leadTime:    { dim: 'leadTime',    label: '线索录入' },
+      wechat:      { dim: 'wechat',      label: '已加微' },
+      wa:          { dim: 'wa',          label: '已加WA' },
+      lost:        { dim: 'lost',        label: '战败' }
+    };
+
+    let _thfPop = null;        // 浮层 DOM（懒创建，挂 document.body）
+    let _thfDim = '';          // 当前打开的维度键
+    let _thfKw = '';           // 面板内的选项搜索词
+    let _thfAnchor = null;     // 触发的 .th-filter 图标元素
+    let _thfOpts = [];         // 当前维度的候选项快照（按下标回调，避免值里带引号导致的转义问题）
+    let _thfGlobalBound = false;
+
+    // 取某一维度的全部候选值（域取自「当前用户可见的全部客户」，不随已选项收缩）
+    function thFilterOpts(dim) {
+      const all = visibleCustomers();
+      const uniq = arr => Array.from(new Set(arr.filter(v => v !== '' && v != null)));
+      const zh = (a, b) => String(a).localeCompare(String(b), 'zh');
+      switch (dim) {
+        case 'country': {
+          const vs = [];
+          all.forEach(c => custCountryAll(c).forEach(v => { if (vs.indexOf(v) < 0) vs.push(v); }));
+          return vs.sort(zh).map(v => ({ v, t: v }));
+        }
+        case 'stage':
+          return (categories.stages || [])
+            .filter(s => all.some(c => c.stage === s.value))
+            .map(s => ({ v: s.value, t: s.text }));
+        case 'touch':
+          return [{ v: '未触达', t: '未触达' }].concat(TOUCH_OPTS.map(v => ({ v, t: v })));
+        case 'level':
+          return ['A', 'B', 'C', 'D']
+            .filter(l => all.some(c => c.level === l))
+            .map(l => ({ v: l, t: l + '级' }));
+        case 'owner':
+          return uniq(all.map(c => c.owner || '未分配')).sort(zh).map(v => ({ v, t: v }));
+        case 'source':
+          return uniq(all.map(c => c.source || '未标注')).sort(zh).map(v => ({ v, t: v }));
+        case 'nextAction':
+          return uniq(all.map(c => c.nextAction || '未安排')).sort(zh).map(v => ({ v, t: v }));
+        case 'lastContact':
+        case 'nextContact':
+        case 'leadTime':
+          // 只保留数据里真实存在的时间桶，避免面板里挂一堆 0 行的选项
+          return CUST_DATE_BUCKETS
+            .filter(b => all.some(c => custMatchDim(c, dim, b)))
+            .map(b => ({ v: b, t: b }));
+        case 'wechat':
+          return ['是', '待通过', '否'].map(v => ({ v, t: v }));
+        case 'wa':
+          return ['是', '否'].map(v => ({ v, t: v }));
+        case 'lost':
+          return [{ v: '在跟', t: '在跟' }, { v: '战败', t: '战败' }];
+      }
+      return [];
+    }
+
+    function thFilterPop() {
+      if (_thfPop && document.body.contains(_thfPop)) return _thfPop;
+      const p = document.createElement('div');
+      p.className = 'thf-pop';
+      p.id = 'thFilterPop';
+      document.body.appendChild(p);
+      _thfPop = p;
+      return p;
+    }
+
+    function thFilterIsOpen() { return !!(_thfPop && _thfPop.classList.contains('open')); }
+
+    function openThFilter(colKey, thEl) {
+      const meta = TH_FILTER_DIMS[colKey];
+      if (!meta) return;
+      // 再次点同一列的图标 = 收起
+      if (thFilterIsOpen() && _thfDim === meta.dim) { closeThFilter(); return; }
+      _thfDim = meta.dim;
+      _thfKw = '';
+      _thfAnchor = thEl || document.querySelector('.th-filter[data-thf="' + colKey + '"]');
+      const pop = thFilterPop();
+      renderThFilter();
+      pop.classList.add('open');
+      positionThFilter();
+      bindThFilterGlobal();
+      const inp = pop.querySelector('.thf-search input');
+      if (inp) { try { inp.focus(); } catch (e) {} }
+    }
+
+    function closeThFilter() {
+      if (_thfPop) _thfPop.classList.remove('open');
+      _thfDim = ''; _thfKw = ''; _thfAnchor = null; _thfOpts = [];
+    }
+
+    // 浮层用 position:fixed，跟随表头图标定位，并在贴边时自动翻转
+    function positionThFilter() {
+      const pop = _thfPop, el = _thfAnchor;
+      if (!pop || !el || !pop.classList.contains('open')) return;
+      const r = el.getBoundingClientRect();
+      const pw = pop.offsetWidth || 268;
+      const ph = pop.offsetHeight || 320;
+      let left = r.left - 10;
+      let top = r.bottom + 6;
+      if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+      if (left < 8) left = 8;
+      if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 6);
+      pop.style.left = left + 'px';
+      pop.style.top = top + 'px';
+    }
+
+    function renderThFilter() {
+      const pop = thFilterPop();
+      const dim = _thfDim;
+      const meta = TH_FILTER_DIMS[dim] || (function () {
+        for (const k in TH_FILTER_DIMS) { if (TH_FILTER_DIMS[k].dim === dim) return TH_FILTER_DIMS[k]; }
+        return null;
+      })();
+      if (!meta) return;
+      const sel = custFilterState[dim] || (custFilterState[dim] = []);
+      const base = custFilteredExcept(dim);
+      const opts = thFilterOpts(dim);
+      _thfOpts = opts;
+      const kw = String(_thfKw || '').toLowerCase();
+
+      let rows = '', shown = 0;
+      opts.forEach((o, i) => {
+        if (kw && String(o.t).toLowerCase().indexOf(kw) < 0) return;
+        shown++;
+        const n = base.filter(c => custMatchDim(c, dim, o.v)).length;
+        const on = sel.indexOf(o.v) >= 0;
+        rows += '<div class="thf-item' + (on ? ' on' : '') + '" onclick="thFilterPick(' + i + ')">'
+          + '<i>' + (on ? '✓' : '') + '</i>'
+          + '<span class="thf-t" title="' + escapeHtml(o.t) + '">' + escapeHtml(o.t) + '</span>'
+          + '<span class="thf-n">' + n + '</span>'
+          + '</div>';
+      });
+      if (!shown) rows = '<div class="thf-empty">' + (opts.length ? '没有匹配的选项' : '本列暂无可筛选的值') + '</div>';
+
+      // 候选项超过 8 个才给搜索框（按完整候选数判断，避免输入过程中搜索框忽隐忽现）
+      const searchBox = opts.length > 8
+        ? '<div class="thf-search"><input type="text" placeholder="搜索选项…" value="' + escapeHtml(_thfKw)
+          + '" oninput="thFilterSearch(this.value)"></div>'
+        : '';
+
+      pop.innerHTML =
+        '<div class="thf-head"><b>筛选：' + escapeHtml(meta.label) + '</b>'
+        + '<span class="thf-x" onclick="closeThFilter()" title="关闭">×</span></div>'
+        + searchBox
+        + '<div class="thf-tools">'
+        + '<span class="thf-act" onclick="thFilterSelectAll(1)">全选</span>'
+        + '<span class="thf-act" onclick="thFilterSelectAll(0)">反选</span>'
+        + '<span class="thf-cnt">已选 ' + sel.length + ' / ' + opts.length + '</span>'
+        + '</div>'
+        + '<div class="thf-list">' + rows + '</div>'
+        + '<div class="thf-foot"><button type="button" onclick="thFilterClear()">清除本列筛选</button></div>';
+    }
+
+    // 面板内改动后统一走这里：刷新表格 + 面板 + 图标高亮 + 重新定位
+    function thFilterApply() {
+      renderCustomers();          // 内部已包含 renderCustFilterBar() 与 syncThFilterIcons()
+      renderThFilter();
+      positionThFilter();
+    }
+
+    function thFilterPick(i) {
+      const o = _thfOpts[i];
+      if (!o || !_thfDim) return;
+      const arr = custFilterState[_thfDim] || (custFilterState[_thfDim] = []);
+      const k = arr.indexOf(o.v);
+      if (k >= 0) arr.splice(k, 1); else arr.push(o.v);
+      thFilterApply();
+    }
+
+    // mode=1 全选（当前搜索结果内），mode=0 反选
+    function thFilterSelectAll(mode) {
+      if (!_thfDim) return;
+      const arr = custFilterState[_thfDim] || (custFilterState[_thfDim] = []);
+      const kw = String(_thfKw || '').toLowerCase();
+      const vis = _thfOpts.filter(o => !kw || String(o.t).toLowerCase().indexOf(kw) >= 0);
+      vis.forEach(o => {
+        const k = arr.indexOf(o.v);
+        if (mode) { if (k < 0) arr.push(o.v); }
+        else if (k >= 0) arr.splice(k, 1); else arr.push(o.v);
+      });
+      thFilterApply();
+    }
+
+    function thFilterClear() {
+      if (!_thfDim) return;
+      custFilterState[_thfDim] = [];
+      thFilterApply();
+    }
+
+    function thFilterSearch(v) {
+      _thfKw = v || '';
+      renderThFilter();
+      positionThFilter();
+      const inp = thFilterPop().querySelector('.thf-search input');
+      if (inp) {
+        inp.focus();
+        try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) {}
+      }
+    }
+
+    // 表头图标高亮 / 显示本列已选项数（renderCustomers 末尾统一调用，覆盖所有改筛选的入口）
+    function syncThFilterIcons() {
+      const icons = document.querySelectorAll('.cust-scroll table.wide thead .th-filter[data-thf]');
+      for (let i = 0; i < icons.length; i++) {
+        const el = icons[i];
+        const meta = TH_FILTER_DIMS[el.getAttribute('data-thf')];
+        const sel = (meta && custFilterState[meta.dim]) || [];
+        if (sel.length) {
+          el.classList.add('on');
+          el.textContent = '▼' + sel.length;
+          el.setAttribute('title', (meta ? meta.label : '') + '：已筛选 ' + sel.length + ' 项，点击修改');
+        } else {
+          el.classList.remove('on');
+          el.textContent = '▽';
+          el.setAttribute('title', '按「' + (meta ? meta.label : '本列') + '」筛选');
+        }
+      }
+    }
+
+    // 点击外部 / Esc 关闭；滚动、窗口尺寸变化时跟随重新定位（只绑一次）
+    function bindThFilterGlobal() {
+      if (_thfGlobalBound) return;
+      _thfGlobalBound = true;
+      const reposition = () => { if (thFilterIsOpen()) positionThFilter(); };
+      document.addEventListener('click', function (e) {
+        if (!thFilterIsOpen()) return;
+        const t = e.target;
+        if (t && t.closest && (t.closest('.thf-pop') || t.closest('.th-filter'))) return;
+        closeThFilter();
+      }, true);
+      document.addEventListener('keydown', function (e) {
+        if (thFilterIsOpen() && (e.key === 'Escape' || e.keyCode === 27)) closeThFilter();
+      });
+      window.addEventListener('resize', reposition);
+      window.addEventListener('scroll', reposition, true);   // 捕获阶段，连 .cust-scroll 内部滚动一起覆盖
     }
     function onCustSearch() {
       custSearchKey = (document.getElementById('custSearch') || {}).value || '';
@@ -4544,16 +4904,17 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
           <td class="col-ops">${opsHtml}</td>
           <td class="col-phone" data-cid="${escapeHtml(String(c.id))}" title="双击可编辑号码">${phoneCellHtml(c)}</td>
           <td>${edCell(c, 'country', 'text', (first ? escapeHtml(normalizeCountry(first) || first) : '<span class="ed-empty">未标注</span>') + more)}</td>
+          <!-- UI改造#9a: 触达/跟进四栏前移到「国家」之后，与表头顺序严格一一对应 -->
+          <td>${edCell(c, 'touchStage', 'select', touchHtml, ['::未触达'].concat(TOUCH_OPTS))}</td>
+          <td>${edCell(c, 'lastContact', 'date', c.lastContact ? formatDate(c.lastContact) : '<span class="ed-empty">—</span>')}</td>
+          <td>${edCell(c, 'nextContact', 'date', c.nextContact ? formatDate(c.nextContact) : '<span class="ed-empty">—</span>')}</td>
+          <td>${edCell(c, 'nextAction', 'select', dash(c.nextAction), ['::— 未安排 —'].concat(NEXT_ACTION_OPTS).concat(['__other__::其他（双击填写内容）']))}</td>
           <td style="min-width:150px;">
             ${edCell(c, 'stage', 'select', '<span class="tag ' + getStageClass(c.stage) + '">' + getStageText(c.stage) + '</span>', stageOpts)}
             <div class="stage-progress" title="跟进进度 ${prog}%">
               <div class="stage-progress-fill" style="width:${prog}%;"></div>
             </div>
           </td>
-          <td>${edCell(c, 'touchStage', 'select', touchHtml, ['::未触达'].concat(TOUCH_OPTS))}</td>
-          <td>${edCell(c, 'lastContact', 'date', c.lastContact ? formatDate(c.lastContact) : '<span class="ed-empty">—</span>')}</td>
-          <td>${edCell(c, 'nextContact', 'date', c.nextContact ? formatDate(c.nextContact) : '<span class="ed-empty">—</span>')}</td>
-          <td>${edCell(c, 'nextAction', 'select', dash(c.nextAction), ['::— 未安排 —'].concat(NEXT_ACTION_OPTS).concat(['__other__::其他（双击填写内容）']))}</td>
           <td>${edCell(c, 'owner', 'text', dash(c.owner))}</td>
           <td>${edCell(c, 'level', 'select', '<span class="tag ' + getLevelClass(c.level) + '">' + (c.level || '-') + '级</span>', ['A::A级','B::B级','C::C级','D::D级'])}</td>
           <td>${edCell(c, 'source', 'select', dash(c.source), srcOpts)}</td>
@@ -4568,6 +4929,7 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
         tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;padding:34px;color:#9ca3af;">没有符合筛选条件的客户，试试「清空筛选」</td></tr>';
       }
       bindCustTableOps();   // UI改造#4b/#4e：事件委托绑定（幂等）
+      syncThFilterIcons();  // UI改造#9b：表头 ▽ 图标高亮同步（顶部筛选栏改动也会走到这里）
       initHScroll();
       syncHScroll();
     }
