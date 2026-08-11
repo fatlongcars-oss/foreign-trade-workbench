@@ -1368,6 +1368,9 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
+  <!-- ECharts 数据可视化库 -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -1410,6 +1413,109 @@
 
     <!-- 主内容 -->
     <main class="main" id="main">
+
+      <!-- ================= 客户跟进分析 ================= -->
+      <section class="page" id="page-analytics">
+        <style>
+          #page-analytics .analytics-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:16px; }
+          @media (max-width: 900px) { #page-analytics .analytics-grid { grid-template-columns:1fr; } }
+          #page-analytics .analytics-tabs { display:flex; gap:8px; margin:4px 0 16px; flex-wrap:wrap; }
+          #page-analytics .tab-btn {
+            padding:8px 18px; border:1px solid var(--border); background:#fff; color:var(--text-secondary);
+            border-radius:8px; cursor:pointer; font-size:14px; font-weight:600; transition:all .15s;
+          }
+          #page-analytics .tab-btn:hover { border-color:#a5b4fc; color:#4f46e5; }
+          #page-analytics .tab-btn.active { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+          #page-analytics .tab-pane { display:none; }
+          #page-analytics .tab-pane.active { display:block; }
+        </style>
+        <div class="page-header">
+          <div class="page-title">客户跟进分析</div>
+          <div class="page-subtitle">多维度数据洞察 · 总体 / 负责人 / 客户</div>
+        </div>
+
+        <div class="analytics-tabs">
+          <button class="tab-btn active" data-tab="overview">总体概览</button>
+          <button class="tab-btn" data-tab="owner">负责人对比</button>
+          <button class="tab-btn" data-tab="detail">客户明细</button>
+        </div>
+
+        <!-- 总体概览 -->
+        <div class="tab-pane active" data-pane="overview">
+          <div class="analytics-grid">
+            <div class="card">
+              <div class="card-header"><div class="card-title">负责人客户分布</div></div>
+              <div class="card-body"><div id="chart-owner-pie" style="width:100%;height:300px;"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">跟进阶段漏斗</div></div>
+              <div class="card-body"><div id="chart-stage-funnel" style="width:100%;height:300px;"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">客户等级分布</div></div>
+              <div class="card-body"><div id="chart-level-bar" style="width:100%;height:280px;"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">触达状态</div></div>
+              <div class="card-body"><div id="chart-touch-donut" style="width:100%;height:280px;"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">国家分布 TOP15</div></div>
+              <div class="card-body"><div id="chart-country-bar" style="width:100%;height:350px;"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">渠道覆盖（WA / 微信）</div></div>
+              <div class="card-body"><div id="chart-channel-pie" style="width:100%;height:280px;"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 负责人对比 -->
+        <div class="tab-pane" data-pane="owner">
+          <div class="analytics-grid">
+            <div class="card">
+              <div class="card-header"><div class="card-title">各负责人客户数 & 阶段</div></div>
+              <div class="card-body"><div id="chart-owner-compare" style="width:100%;height:320px;"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">各负责人等级分布</div></div>
+              <div class="card-body"><div id="chart-owner-level" style="width:100%;height:280px;"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">各负责人战败率</div></div>
+              <div class="card-body"><div id="chart-owner-lost" style="width:100%;height:260px;"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">各负责人近期活跃度</div></div>
+              <div class="card-body"><div id="chart-owner-active" style="width:100%;height:300px;"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">WA / 微信覆盖率</div></div>
+              <div class="card-body"><div id="chart-owner-wa" style="width:100%;height:240px;"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 客户明细 -->
+        <div class="tab-pane" data-pane="detail">
+          <div class="analytics-grid">
+            <div class="card">
+              <div class="card-header"><div class="card-title">最近 30 天有跟进（TOP20）</div></div>
+              <div class="card-body"><div id="chart-recent-active" style="width:100%;height:300px;"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">超过 60 天未跟进预警（TOP20）</div></div>
+              <div class="card-body"><div id="chart-long-silent" style="width:100%;height:280px;"></div></div>
+            </div>
+            <div class="card" style="grid-column:1 / -1;">
+              <div class="card-header"><div class="card-title">高价值客户（A级 + 已加 WA/微信）</div></div>
+              <div class="card-body" id="highValueTable"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- 客户跟进分析结束 -->
+
       <!-- 仪表盘 -->
       <section class="page" id="page-dashboard">
         <div class="page-header">
@@ -2446,6 +2552,10 @@
     <div class="mobile-nav-item" onclick="switchPage('dashboard')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
       <span>仪表盘</span>
+    </div>
+    <div class="mobile-nav-item" onclick="switchPage('analytics')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+      <span>分析</span>
     </div>
     <div class="mobile-nav-item active" onclick="switchPage('customers')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -3782,7 +3892,8 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
       time: '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
       unit: '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"></path></svg>',
       documents: '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>',
-      link: '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>'
+      link: '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>',
+      analytics: '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>'
     };
     function getDefaultNav() {
       return [
@@ -3791,6 +3902,7 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
           title: '',
           items: [
             { id: 'dashboard', title: '仪表盘', icon: 'dashboard', type: 'page', page: 'dashboard' },
+            { id: 'analytics', title: '客户跟进分析', icon: 'analytics', type: 'page', page: 'analytics' },
             { id: 'customers', title: '客户管理', icon: 'customers', type: 'page', page: 'customers', badgeId: 'customerBadge' },
             { id: 'social', title: '开发数据', icon: 'social', type: 'page', page: 'social' },
             { id: 'exhibition', title: '展会管理', icon: 'exhibition', type: 'page', page: 'exhibition' },
@@ -3861,6 +3973,18 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
     function renderSidebar() {
       const container = document.getElementById('sidebarContent');
       if (!container) return;
+      // 兼容旧版 localStorage 导航缓存：若主分组不含 analytics 则自动插入到「仪表盘」之后
+      try {
+        const mainGroup = navStructure.find(g => g && g.id === 'main');
+        if (mainGroup && Array.isArray(mainGroup.items)) {
+          const hasAnalytics = mainGroup.items.some(it => it && it.id === 'analytics');
+          if (!hasAnalytics) {
+            const dashIdx = mainGroup.items.findIndex(it => it && it.id === 'dashboard');
+            mainGroup.items.splice(dashIdx >= 0 ? dashIdx + 1 : 1, 0,
+              { id: 'analytics', title: '客户跟进分析', icon: 'analytics', type: 'page', page: 'analytics' });
+          }
+        }
+      } catch (e) { /* 忽略导航兼容错误 */ }
       container.innerHTML = navStructure.map((g, gi) => {
         const titleHtml = g.title ? `<div class="nav-group-title">${escapeHtml(g.title)}</div>` : '';
         // BugFix#4：递归渲染，让用户自建的三级/四级目录也能出现在侧边栏（按层级缩进）
@@ -4112,6 +4236,7 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
       else if (page === 'products') renderProducts();
       else if (page === 'tools') startClocks();
       else if (page === 'review') renderQuadrants();
+      else if (page === 'analytics') renderAnalytics();
       else if (page === 'documents') renderDocuments();
     }
 
@@ -7015,6 +7140,378 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
         reader.readAsDataURL(file);
       });
     }
+    function renderAnalytics() {
+      if (typeof echarts === 'undefined') { toast('图表库未加载，请刷新页面'); return; }
+      // 1. 取数并清洗：仅保留真正客户对象（id 为字符串）
+      const customers = (appData.customers || []).filter(c => c && typeof c === 'object' && typeof c.id === 'string');
+      const total = customers.length;
+
+      // 2. 通用工具函数
+      function countBy(field) {
+        const m = {};
+        customers.forEach(c => {
+          const raw = c[field];
+          const k = (raw === undefined || raw === null || raw === '') ? '未填' : String(raw);
+          m[k] = (m[k] || 0) + 1;
+        });
+        return m;
+      }
+      function countByOwner(field) {
+        const m = {};
+        customers.forEach(c => {
+          const o = c.owner || '未分配';
+          const raw = c[field];
+          const k = (raw === undefined || raw === null || raw === '') ? '未填' : String(raw);
+          if (!m[o]) m[o] = {};
+          m[o][k] = (m[o][k] || 0) + 1;
+        });
+        return m;
+      }
+      function startOfToday() { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }
+      function daysSince(dateStr) {
+        if (!dateStr) return Infinity;
+        const t = new Date(String(dateStr).replace(/-/g, '/') + ' 00:00:00');
+        if (isNaN(t.getTime())) return Infinity;
+        return Math.floor((startOfToday() - t) / 86400000);
+      }
+      function dateBucket(dateStr) {
+        const d = daysSince(dateStr);
+        if (d <= 7) return '7d';
+        if (d <= 30) return '30d';
+        if (d <= 90) return '90d';
+        return '90d+';
+      }
+
+      // 3. ECharts 实例管理：先 dispose 旧实例，避免重复初始化
+      if (!window.__analyticsCharts) window.__analyticsCharts = new Map();
+      const chartMap = window.__analyticsCharts;
+      function setOption(id, opt) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (chartMap.has(id)) { try { chartMap.get(id).dispose(); } catch (e) {} }
+        const inst = echarts.init(el);
+        chartMap.set(id, inst);
+        inst.setOption(opt, true);
+      }
+      function resizeAll() { chartMap.forEach(inst => { try { inst.resize(); } catch (e) {} }); }
+
+      // 统一主题色
+      const C = { primary: '#4f46e5', success: '#22c55e', warn: '#f59e0b', danger: '#ef4444', info: '#06b6d4', gray: '#94a3b8', slate: '#64748b' };
+
+      // ================= 总体概览 =================
+      // a) 负责人客户分布环形饼图
+      const ownerCounts = countBy('owner');
+      const owners = Object.keys(ownerCounts).sort((a, b) => ownerCounts[b] - ownerCounts[a]);
+      setOption('chart-owner-pie', {
+        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+        legend: { bottom: 0, type: 'scroll' },
+        title: { text: total.toLocaleString(), subtext: '总客户', left: 'center', top: '34%', textAlign: 'center', textStyle: { fontSize: 20, fontWeight: 'bold', color: '#1e293b' }, subtextStyle: { fontSize: 12, color: '#64748b' } },
+        series: [{
+          name: '客户分布', type: 'pie', radius: ['40%', '65%'], center: ['50%', '45%'],
+          avoidLabelOverlap: true, itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+          label: { formatter: '{b}\n{c} ({d}%)' },
+          data: owners.map(k => ({ name: k, value: ownerCounts[k] }))
+        }]
+      });
+
+      // b) 跟进阶段漏斗
+      const rawStage = countBy('stage');
+      setOption('chart-stage-funnel', {
+        tooltip: { trigger: 'item', formatter: '{b}: {c}' },
+        series: [{
+          name: '跟进阶段', type: 'funnel', left: '8%', right: '8%', top: 16, bottom: 16,
+          min: 0, minSize: '0%', maxSize: '100%', sort: 'descending', gap: 2,
+          label: { show: true, position: 'inside', formatter: '{b}: {c}' },
+          itemStyle: { borderColor: '#fff', borderWidth: 1 },
+          color: [C.gray, C.primary, C.info, C.success],
+          data: [
+            { name: '待开发', value: rawStage['待开发'] || 0 },
+            { name: '初步接触(D1)', value: rawStage['D1'] || 0 },
+            { name: '深度跟进(D3)', value: rawStage['D3'] || 0 },
+            { name: '成交', value: 0 }
+          ]
+        }]
+      });
+
+      // c) 客户等级分布柱状图
+      const levelOrder = ['A', 'B', 'C', 'D'];
+      const levelCounts = countBy('level');
+      setOption('chart-level-bar', {
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: '{b} 级: {c} 个' },
+        grid: { left: 50, right: 20, top: 20, bottom: 30 },
+        xAxis: { type: 'category', data: levelOrder, name: '等级' },
+        yAxis: { type: 'value', name: '客户数' },
+        series: [{
+          name: '客户数', type: 'bar', barWidth: '45%',
+          data: levelOrder.map(l => ({ value: levelCounts[l] || 0, itemStyle: { color: { A: C.primary, B: C.success, C: C.warn, D: C.danger }[l] } })),
+          label: { show: true, position: 'top' }
+        }]
+      });
+
+      // d) 触达状态环形图
+      const rawTouch = countBy('touchStage');
+      const touchDisplay = { '未触达': 0, '已触达': 0, '首次触达': 0 };
+      Object.keys(rawTouch).forEach(k => {
+        if (k === '未触达') touchDisplay['未触达'] += rawTouch[k];
+        else if (k === '首次触达') touchDisplay['首次触达'] += rawTouch[k];
+        else touchDisplay['已触达'] += rawTouch[k]; // 空值等视为已触达
+      });
+      setOption('chart-touch-donut', {
+        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+        legend: { bottom: 0 },
+        color: [C.gray, C.primary, C.success],
+        series: [{
+          name: '触达状态', type: 'pie', radius: ['35%', '60%'], center: ['50%', '45%'],
+          label: { formatter: '{b}\n{c} ({d}%)' },
+          data: [
+            { name: '未触达', value: touchDisplay['未触达'] },
+            { name: '已触达', value: touchDisplay['已触达'] },
+            { name: '首次触达', value: touchDisplay['首次触达'] }
+          ]
+        }]
+      });
+
+      // e) 国家分布 TOP15 横向柱状图
+      const countryCounts = countBy('country');
+      const countryTop = Object.keys(countryCounts).sort((a, b) => countryCounts[b] - countryCounts[a]).slice(0, 15);
+      setOption('chart-country-bar', {
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: '{b}: {c} 个' },
+        grid: { left: 90, right: 30, top: 16, bottom: 30 },
+        xAxis: { type: 'value', name: '客户数' },
+        yAxis: { type: 'category', data: countryTop.slice().reverse(), name: '国家' },
+        series: [{
+          name: '客户数', type: 'bar',
+          data: countryTop.slice().reverse().map(c => countryCounts[c]),
+          itemStyle: { color: C.primary, borderRadius: [0, 4, 4, 0] },
+          label: { show: true, position: 'right' }
+        }]
+      });
+
+      // f) 渠道覆盖饼图（仅 WA / 仅微信 / 均有 / 均无）
+      let waOnly = 0, wxOnly = 0, both = 0, neither = 0;
+      customers.forEach(c => {
+        const wa = c.waAdded === '是';
+        const wx = c.wechatAdded === '是';
+        if (wa && wx) both++;
+        else if (wa) waOnly++;
+        else if (wx) wxOnly++;
+        else neither++;
+      });
+      setOption('chart-channel-pie', {
+        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+        legend: { bottom: 0 },
+        color: [C.primary, C.success, C.warn, C.gray],
+        series: [{
+          name: '渠道覆盖', type: 'pie', radius: ['35%', '60%'], center: ['50%', '45%'],
+          label: { formatter: '{b}\n{c} ({d}%)' },
+          data: [
+            { name: '仅 WA', value: waOnly },
+            { name: '仅 微信', value: wxOnly },
+            { name: '均有 (WA+微信)', value: both },
+            { name: '均无', value: neither }
+          ]
+        }]
+      });
+
+      // ================= 负责人对比 =================
+      // a) 各负责人客户数 + 阶段堆叠柱状图
+      const stageByOwner = countByOwner('stage');
+      const stageKeys = ['待开发', 'D1', 'D3'];
+      const stageColors = { '待开发': C.gray, 'D1': C.primary, 'D3': C.info };
+      const stageLabels = { '待开发': '待开发', 'D1': '初步接触(D1)', 'D3': '深度跟进(D3)' };
+      const ownerCompareSeries = stageKeys.map(sk => ({
+        name: stageLabels[sk], type: 'bar', stack: 'stage', emphasis: { focus: 'series' },
+        itemStyle: { color: stageColors[sk] },
+        data: owners.map(o => (stageByOwner[o] && stageByOwner[o][sk]) || 0)
+      }));
+      setOption('chart-owner-compare', {
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => p.map(i => i.seriesName + ': ' + i.value).join('<br>') },
+        legend: { top: 0 },
+        grid: { left: 50, right: 20, top: 36, bottom: 60 },
+        xAxis: { type: 'category', data: owners, axisLabel: { interval: 0, rotate: owners.length > 3 ? 15 : 0 } },
+        yAxis: { type: 'value', name: '客户数' },
+        series: ownerCompareSeries
+      });
+
+      // b) 各负责人等级分布堆叠条形图
+      const levelByOwner = countByOwner('level');
+      const levelKeys = ['A', 'B', 'C', 'D'];
+      const levelColors = { 'A': C.primary, 'B': C.success, 'C': C.warn, 'D': C.danger };
+      const ownerLevelSeries = levelKeys.map(lk => ({
+        name: '等级 ' + lk, type: 'bar', stack: 'level', itemStyle: { color: levelColors[lk] },
+        data: owners.map(o => (levelByOwner[o] && levelByOwner[o][lk]) || 0)
+      }));
+      setOption('chart-owner-level', {
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => p.map(i => i.seriesName + ': ' + i.value).join('<br>') },
+        legend: { top: 0 },
+        grid: { left: 70, right: 20, top: 36, bottom: 30 },
+        xAxis: { type: 'value', name: '客户数' },
+        yAxis: { type: 'category', data: owners },
+        series: ownerLevelSeries
+      });
+
+      // c) 各负责人战败率（正常 vs 战败，柱顶标注战败率）
+      const lostByOwner = {};
+      owners.forEach(o => { lostByOwner[o] = { lost: 0, normal: 0 }; });
+      customers.forEach(c => {
+        const o = c.owner || '未分配';
+        if (!lostByOwner[o]) lostByOwner[o] = { lost: 0, normal: 0 };
+        if (c.lost === true || c.lost === '是') lostByOwner[o].lost++; else lostByOwner[o].normal++;
+      });
+      const lostRateArr = owners.map(o => { const t = lostByOwner[o].lost + lostByOwner[o].normal; return t ? +((lostByOwner[o].lost / t) * 100).toFixed(1) : 0; });
+      setOption('chart-owner-lost', {
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => p.map(i => i.seriesName + ': ' + i.value).join('<br>') },
+        legend: { top: 0 },
+        grid: { left: 50, right: 20, top: 36, bottom: 60 },
+        xAxis: { type: 'category', data: owners, axisLabel: { interval: 0, rotate: owners.length > 3 ? 15 : 0 } },
+        yAxis: { type: 'value', name: '客户数' },
+        series: [
+          { name: '正常', type: 'bar', itemStyle: { color: C.success }, data: owners.map(o => lostByOwner[o].normal) },
+          {
+            name: '战败', type: 'bar', itemStyle: { color: C.danger }, data: owners.map(o => lostByOwner[o].lost),
+            label: { show: true, position: 'top', formatter: p => lostRateArr[p.dataIndex] + '%', color: C.danger, fontWeight: 'bold' }
+          }
+        ]
+      });
+
+      // d) 各负责人近期活跃度（按 lastContact 分桶）
+      const activeBuckets = { '7d': '7天内', '30d': '30天内', '90d': '90天内', '90d+': '90天+' };
+      const activeByOwner = {};
+      owners.forEach(o => { activeByOwner[o] = { '7d': 0, '30d': 0, '90d': 0, '90d+': 0 }; });
+      customers.forEach(c => {
+        const o = c.owner || '未分配';
+        if (!activeByOwner[o]) activeByOwner[o] = { '7d': 0, '30d': 0, '90d': 0, '90d+': 0 };
+        activeByOwner[o][dateBucket(c.lastContact)]++;
+      });
+      const activeOrder = ['7d', '30d', '90d', '90d+'];
+      const activeColors = { '7d': C.success, '30d': C.primary, '90d': C.warn, '90d+': C.danger };
+      const ownerActiveSeries = activeOrder.map(bk => ({
+        name: activeBuckets[bk], type: 'bar', stack: 'active', itemStyle: { color: activeColors[bk] },
+        data: owners.map(o => activeByOwner[o][bk])
+      }));
+      setOption('chart-owner-active', {
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => p.map(i => i.seriesName + ': ' + i.value).join('<br>') },
+        legend: { top: 0 },
+        grid: { left: 50, right: 20, top: 36, bottom: 60 },
+        xAxis: { type: 'category', data: owners, axisLabel: { interval: 0, rotate: owners.length > 3 ? 15 : 0 } },
+        yAxis: { type: 'value', name: '客户数' },
+        series: ownerActiveSeries
+      });
+
+      // e) 各负责人 WA / 微信覆盖率分组柱状图
+      const covByOwner = {};
+      owners.forEach(o => { covByOwner[o] = { wa: 0, wx: 0, total: 0 }; });
+      customers.forEach(c => {
+        const o = c.owner || '未分配';
+        if (!covByOwner[o]) covByOwner[o] = { wa: 0, wx: 0, total: 0 };
+        covByOwner[o].total++;
+        if (c.waAdded === '是') covByOwner[o].wa++;
+        if (c.wechatAdded === '是') covByOwner[o].wx++;
+      });
+      const covRateArr = owners.map(o => {
+        const t = covByOwner[o].total;
+        return { wa: t ? +((covByOwner[o].wa / t) * 100).toFixed(1) : 0, wx: t ? +((covByOwner[o].wx / t) * 100).toFixed(1) : 0 };
+      });
+      setOption('chart-owner-wa', {
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => { let s = p[0].axisValue + '<br>'; p.forEach(i => s += i.seriesName + ': ' + i.value + '%<br>'); return s; } },
+        legend: { top: 0 },
+        grid: { left: 50, right: 20, top: 36, bottom: 60 },
+        xAxis: { type: 'category', data: owners, axisLabel: { interval: 0, rotate: owners.length > 3 ? 15 : 0 } },
+        yAxis: { type: 'value', name: '覆盖率(%)', max: 100 },
+        series: [
+          { name: 'WA覆盖率', type: 'bar', itemStyle: { color: C.success }, data: owners.map((o, i) => covRateArr[i].wa) },
+          { name: '微信覆盖率', type: 'bar', itemStyle: { color: C.primary }, data: owners.map((o, i) => covRateArr[i].wx) }
+        ]
+      });
+
+      // ================= 客户明细 =================
+      // a) 最近 30 天有跟进（按日期降序 TOP20）
+      const recent = customers
+        .filter(c => c.lastContact && isFinite(daysSince(c.lastContact)) && daysSince(c.lastContact) <= 30)
+        .sort((a, b) => new Date(String(b.lastContact).replace(/-/g, '/')) - new Date(String(a.lastContact).replace(/-/g, '/')))
+        .slice(0, 20);
+      setOption('chart-recent-active', {
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => { const c = recent[p[0].dataIndex]; return (c.name || '-') + '<br>最后联系: ' + (c.lastContact || '-') + '<br>负责人: ' + (c.owner || '-'); } },
+        grid: { left: 120, right: 40, top: 10, bottom: 30 },
+        xAxis: { type: 'value', name: '距今天数' },
+        yAxis: { type: 'category', data: recent.slice().reverse().map(c => String(c.name || '-').slice(0, 10)), axisLabel: { fontSize: 10 } },
+        series: [{
+          name: '未跟进天数', type: 'bar',
+          data: recent.slice().reverse().map(c => daysSince(c.lastContact)),
+          itemStyle: { color: C.success, borderRadius: [0, 4, 4, 0] },
+          label: { show: true, position: 'right', formatter: p => p.value + '天' }
+        }]
+      });
+
+      // b) 超过 60 天未跟进预警（按天降序 TOP20）
+      const silent = customers
+        .filter(c => isFinite(daysSince(c.lastContact)) ? daysSince(c.lastContact) > 60 : true)
+        .sort((a, b) => daysSince(b.lastContact) - daysSince(a.lastContact))
+        .slice(0, 20);
+      setOption('chart-long-silent', {
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => { const c = silent[p[0].dataIndex]; return (c.name || '-') + '<br>最后联系: ' + (c.lastContact || '从未') + '<br>负责人: ' + (c.owner || '-') + '<br>静默: ' + (isFinite(daysSince(c.lastContact)) ? daysSince(c.lastContact) + '天' : '∞'); } },
+        grid: { left: 120, right: 50, top: 10, bottom: 30 },
+        xAxis: { type: 'value', name: '静默天数' },
+        yAxis: { type: 'category', data: silent.slice().reverse().map(c => String(c.name || '-').slice(0, 10)), axisLabel: { fontSize: 10 } },
+        series: [{
+          name: '静默天数', type: 'bar',
+          data: silent.slice().reverse().map(c => isFinite(daysSince(c.lastContact)) ? daysSince(c.lastContact) : 999),
+          itemStyle: { color: C.danger, borderRadius: [0, 4, 4, 0] },
+          label: { show: true, position: 'right', formatter: p => p.value + '天' }
+        }]
+      });
+
+      // c) 高价值客户表格（A级 + 已加 WA/微信）
+      const highValue = customers.filter(c => c.level === 'A' && (c.waAdded === '是' || c.wechatAdded === '是'));
+      const tbl = document.getElementById('highValueTable');
+      if (tbl) {
+        if (!highValue.length) {
+          tbl.innerHTML = '<div style="text-align:center;color:var(--text-secondary);padding:30px 0;">暂无高价值客户（A级且已加 WA/微信）</div>';
+        } else {
+          tbl.innerHTML = `
+            <table class="doc-table" style="width:100%;">
+              <thead><tr><th>编号</th><th>名称</th><th>国家</th><th>负责人</th><th>等级</th><th>最后联系</th><th>WA</th><th>微信</th></tr></thead>
+              <tbody>
+                ${highValue.map(c => `
+                  <tr>
+                    <td>${escapeHtml(c.custNo != null ? c.custNo : '-')}</td>
+                    <td>${escapeHtml(c.name || '-')}</td>
+                    <td>${escapeHtml(c.country || '-')}</td>
+                    <td>${escapeHtml(c.owner || '-')}</td>
+                    <td><span class="doc-badge" style="background:#eef2ff;color:#4f46e5;">${escapeHtml(c.level || '-')}</span></td>
+                    <td>${escapeHtml(c.lastContact || '-')}</td>
+                    <td>${c.waAdded === '是' ? '<span style="color:#22c55e;font-weight:700;">✓</span>' : '<span style="color:#cbd5e1;">-</span>'}</td>
+                    <td>${c.wechatAdded === '是' ? '<span style="color:#22c55e;font-weight:700;">✓</span>' : '<span style="color:#cbd5e1;">-</span>'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>`;
+        }
+      }
+
+      // 7. Tab 切换逻辑
+      const tabBtns = document.querySelectorAll('#page-analytics .tab-btn');
+      const tabPanes = document.querySelectorAll('#page-analytics .tab-pane');
+      tabBtns.forEach(btn => {
+        btn.onclick = () => {
+          const target = btn.getAttribute('data-tab');
+          tabBtns.forEach(b => b.classList.toggle('active', b === btn));
+          tabPanes.forEach(p => p.classList.toggle('active', p.getAttribute('data-pane') === target));
+          // 切换后重绘确保隐藏 tab 图表尺寸正确
+          setTimeout(resizeAll, 30);
+        };
+      });
+
+      // 初次进入做一次 resize，确保当前可见 tab 图表尺寸正确
+      setTimeout(resizeAll, 60);
+
+      // 8. 窗口尺寸变化统一 resize
+      if (!window.__analyticsResizeBound) {
+        window.__analyticsResizeBound = true;
+        window.addEventListener('resize', () => { if (window.__analyticsCharts) window.__analyticsCharts.forEach(inst => { try { inst.resize(); } catch (e) {} }); });
+      }
+    }
+
     function renderDocuments() {
       const list = document.getElementById('documentList');
       const filter = document.getElementById('docFilter').value;
