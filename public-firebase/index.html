@@ -7510,6 +7510,18 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
         window.__analyticsResizeBound = true;
         window.addEventListener('resize', () => { if (window.__analyticsCharts) window.__analyticsCharts.forEach(inst => { try { inst.resize(); } catch (e) {} }); });
       }
+
+      // 9. 注册远端数据变化自动刷新：当 Firebase onValue 收到新数据时，
+      //    若当前正在查看分析页，自动重绘所有图表（appData.customers 已被 onValue 更新）
+      window.__onRemoteUpdate = (function(prev) {
+        return function() {
+          if (typeof prev === 'function') try { prev(); } catch(e) {}
+          var ap = document.getElementById('page-analytics');
+          if (ap && ap.classList.contains('active') && typeof echarts !== 'undefined') {
+            renderAnalytics();
+          }
+        };
+      })(window.__onRemoteUpdate);
     }
 
     function renderDocuments() {
