@@ -412,26 +412,61 @@
     .cust-hscroll-thumb:hover, .cust-hscroll-thumb.dragging { background: #64748b; }
     .cust-hscroll-thumb.dragging { cursor: grabbing; }
     /* UI改造#4a/#4d/#5: 新增「编号 / 操作 / 联系电话」三列，表格最小宽度同步放大 */
-    .cust-scroll table.wide { min-width: 2040px; border-collapse: separate; border-spacing: 0; }
+    /* UI改造#12: 全列瘦身——操作列改纵向、各列压缩留白，最小宽度由 2040px 降到 1360px */
+    .cust-scroll table.wide { min-width: 1360px; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
     .cust-scroll table.wide th,
     .cust-scroll table.wide td { border-bottom: 1px solid var(--border); }
+    /* UI改造#12: 表头/单元格瘦身（只作用于客户表，不影响其它表格） */
+    .cust-scroll table.wide thead th { padding: 6px 6px; font-size: 11.5px; letter-spacing: 0; }
+    .cust-scroll table.wide tbody td { padding: 5px 6px; vertical-align: middle; }
+    .cust-scroll table.wide .tag { padding: 1px 6px; font-size: 11px; border-radius: 10px; }
+    .cust-scroll table.wide .ed-empty { font-size: 11px; }
+    .cust-scroll table.wide .stage-progress { margin-top: 3px; height: 3px; max-width: 92px; }
+    /* UI改造#12: 各数据列最小宽度收敛（表头 + 单元格按同一列序对齐） */
+    .cust-scroll table.wide th[data-col="country"],
+    .cust-scroll table.wide td.c-country { min-width: 70px; font-size: 12px; }
+    .cust-scroll table.wide th[data-col="touch"],
+    .cust-scroll table.wide td.c-touch { min-width: 65px; }
+    .cust-scroll table.wide th[data-col="lastContact"],
+    .cust-scroll table.wide th[data-col="nextContact"],
+    .cust-scroll table.wide td.c-lastContact,
+    .cust-scroll table.wide td.c-nextContact { min-width: 75px; font-size: 11.5px; }
+    .cust-scroll table.wide th[data-col="nextAction"],
+    .cust-scroll table.wide td.c-nextAction { min-width: 90px; font-size: 11.5px; }
+    .cust-scroll table.wide th[data-col="stage"],
+    .cust-scroll table.wide td.c-stage { min-width: 100px; }
+    .cust-scroll table.wide th[data-col="owner"],
+    .cust-scroll table.wide td.c-owner { min-width: 55px; }
+    .cust-scroll table.wide th[data-col="level"],
+    .cust-scroll table.wide td.c-level { min-width: 40px; }
+    .cust-scroll table.wide th[data-col="source"],
+    .cust-scroll table.wide td.c-source { min-width: 70px; font-size: 12px; }
+    .cust-scroll table.wide th[data-col="leadTime"],
+    .cust-scroll table.wide td.c-leadTime { min-width: 75px; font-size: 11.5px; }
+    .cust-scroll table.wide th[data-col="wechat"],
+    .cust-scroll table.wide th[data-col="wa"],
+    .cust-scroll table.wide th[data-col="lost"],
+    .cust-scroll table.wide td.c-wechatAdded,
+    .cust-scroll table.wide td.c-waAdded,
+    .cust-scroll table.wide td.c-lost { min-width: 50px; }
     /* 表头冻结 */
     .cust-scroll table.wide thead th {
       position: sticky; top: 0; z-index: 3;
       background: #f1f5f9; box-shadow: inset 0 -1px 0 var(--border);
     }
-    /* 首列（客户名称）冻结 —— UI改造#5：编号列插到最左，客户名称列左偏移 60px */
+    /* 首列（客户名称）冻结 —— UI改造#5：编号列插到最左，客户名称列左偏移
+       UI改造#12：编号列由 60px 压到 42px，此处 left 同步改成 42px，否则两列会错位重叠 */
     .cust-scroll table.wide th.col-name,
     .cust-scroll table.wide td.col-name {
-      position: sticky; left: 60px; z-index: 2;
+      position: sticky; left: 42px; z-index: 2;
       background: #fff;
-      min-width: 240px; max-width: 300px;
+      min-width: 120px; max-width: 210px;
       box-shadow: 2px 0 0 0 var(--border), 6px 0 10px -8px rgba(15,23,42,.25);
     }
     .cust-scroll table.wide thead th.col-name { z-index: 4; background: #f1f5f9; }
     .cust-scroll table.wide tr:hover td.col-name { background: #f9fafb; }
-    .cust-name-en { font-weight: 700; color: var(--text-primary); display: block; line-height: 1.35; white-space: normal; }
-    .cust-name-cn { font-weight: 500; color: var(--text-secondary); font-size: 12px; display: block; line-height: 1.35; white-space: normal; margin-top: 2px; }
+    .cust-name-en { font-weight: 700; color: var(--text-primary); display: block; line-height: 1.3; white-space: normal; font-size: 12.5px; }
+    .cust-name-cn { font-weight: 500; color: var(--text-secondary); font-size: 11.5px; display: block; line-height: 1.3; white-space: normal; margin-top: 1px; }
     .country-more { display: inline-block; margin-left: 5px; padding: 1px 6px; border-radius: 8px; background: #eef2ff; color: #4f46e5; font-size: 11px; font-weight: 700; cursor: help; }
 
     /* ===== 首页行内编辑 ===== */
@@ -1136,25 +1171,30 @@
     .cust-scroll table.wide td.col-no {
       position:sticky; left:0; z-index:2;
       background:#fff;
-      width:60px; min-width:60px; max-width:60px;
+      width:42px; min-width:42px; max-width:42px;
       text-align:center;
-      font-size:12px; color:#94a3b8; font-weight:600;
-      padding-left:6px; padding-right:6px;
+      font-size:11px; color:#94a3b8; font-weight:600;
+      padding:2px 4px;
     }
     .cust-scroll table.wide thead th.col-no { z-index:5; background:#f1f5f9; color:var(--text-secondary); }
     .cust-scroll table.wide tr:hover td.col-no { background:#f9fafb; }
 
-    /* ================= UI改造 #4a：操作列（客户名称之后，第 3 列） ================= */
+    /* ================= UI改造 #4a：操作列（客户名称之后，第 3 列） =================
+       UI改造#12：三个按钮由横排改为纵向堆叠，列宽 180px → 62px */
     .cust-scroll table.wide th.col-ops,
     .cust-scroll table.wide td.col-ops {
-      width:180px; min-width:180px; white-space:nowrap; padding-left:8px; padding-right:8px;
+      width:62px; min-width:62px; max-width:62px;
+      white-space:nowrap; padding:3px 4px; text-align:center;
     }
-    .ops-wrap { display:inline-flex; align-items:center; gap:4px; flex-wrap:nowrap; }
-    .ops-wrap .btn { padding:3px 9px; font-size:12px; }
+    .ops-wrap { display:flex; flex-direction:column; align-items:stretch; gap:2px; flex-wrap:nowrap; }
+    .ops-wrap .btn {
+      padding:2px 4px; font-size:11px; line-height:1.35; font-weight:600;
+      border-radius:5px; min-width:0; width:100%; justify-content:center; white-space:nowrap;
+    }
 
     /* ================= UI改造 #4d/#4e：联系电话列 ================= */
     .cust-scroll table.wide th.col-phone,
-    .cust-scroll table.wide td.col-phone { min-width:190px; }
+    .cust-scroll table.wide td.col-phone { min-width:130px; font-size:12px; }
     .col-phone .ph-wrap { display:inline-flex; align-items:center; gap:6px; flex-wrap:nowrap; }
     .ph-more {
       display:inline-flex; align-items:center;
@@ -1841,7 +1881,7 @@
           <div class="fbar-top">
             <div class="fbar-search">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-              <input type="text" id="custSearch" placeholder="搜索：客户名 / 国家 / 负责人 / 电话 / 微信 / WA / 备注…" oninput="onCustSearch()">
+              <input type="text" id="custSearch" placeholder="搜索：编号 / 客户名 / 国家 / 负责人 / 电话 / 微信 / WA / 备注…" oninput="onCustSearch()">
             </div>
             <div class="fbar-count">共 <b id="custCountShown">793</b> / <span id="custCountAll">874</span> 家</div>
             <div class="fbar-actions">
@@ -4285,7 +4325,8 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
     // 关键词命中判断（抽成独立函数，供 getFilteredCustomers / custFilteredExcept 复用）
     function custMatchKeyword(c, kw) {
       if (!kw) return true;
-      const hay = [c.name, c.nameCn, c.country, c.owner, c.assignee, c.source, c.nextAction, c.note,
+      // UI改造#13：搜索框支持按「客户编号」查询（custNo）；编号排在最前，输入纯数字优先命中编号
+      const hay = [String(c.custNo != null ? c.custNo : ''), c.name, c.nameCn, c.country, c.owner, c.assignee, c.source, c.nextAction, c.note,
                    c.wechatId, c.waId, c.email, c.phoneCn, c.phoneOversea, c.lostReason, c.phone,
                    custCountryAll(c).join(' '),
                    c.detail && c.detail.contactText].filter(Boolean).join(' ').toLowerCase();
@@ -4858,8 +4899,137 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
       return html;
     }
 
+    /* ================= UI改造#12（性能）：单元格渲染抽取 =================
+       原实现把每一列的 HTML 拼装逻辑写死在 renderCustomers 的模板串里，
+       导致「改一个字段 = 整表 3000+ 行重新拼串 + innerHTML 重绘」，双击编辑明显卡顿。
+       这里把「某客户某字段的单元格内容」抽成纯函数 custCellInner()，
+       让整表渲染（renderCustomers）与单格增量刷新（updateSingleCell）共用同一份逻辑，
+       从根上保证两条路径渲染结果一致，不会出现「改完显示和刷新后不一样」。 */
+
+    // 行内编辑控件类型表（与 edCell 的第三个参数一一对应）
+    const CUST_ED_TYPE = {
+      name: 'text', country: 'text', touchStage: 'select', lastContact: 'date', nextContact: 'date',
+      nextAction: 'select', stage: 'select', owner: 'text', level: 'select', source: 'select',
+      leadTime: 'date', wechatAdded: 'select', waAdded: 'select', lost: 'select'
+    };
+    // 「来源」下拉选项依赖全量客户，缓存起来避免每格重算；客户数或来源集合变化时自动失效
+    let _srcOptsCache = null, _srcOptsSig = '';
+    function custSourceOpts() {
+      const all = appData.customers || [];
+      const sig = all.length + '#' + (appData._srcRev || 0);
+      if (_srcOptsCache && _srcOptsSig === sig) return _srcOptsCache;
+      _srcOptsCache = Array.from(new Set(all.map(c => c.source).filter(Boolean)
+        .concat(['WORK BUDDY开发','展会','独立站','阿里巴巴','社媒','LinkedIn','邮件','转介绍','手动录入'])));
+      _srcOptsSig = sig;
+      return _srcOptsCache;
+    }
+    // 某字段的下拉选项（非下拉字段返回 null）
+    function custEdOpts(field) {
+      switch (field) {
+        case 'touchStage':  return ['::未触达'].concat(TOUCH_OPTS);
+        case 'nextAction':  return ['::— 未安排 —'].concat(NEXT_ACTION_OPTS).concat(['__other__::其他（双击填写内容）']);
+        case 'stage':       return (categories.stages || []).map(s => s.value + '::' + s.text);
+        case 'level':       return ['A::A级','B::B级','C::C级','D::D级'];
+        case 'source':      return custSourceOpts();
+        case 'wechatAdded': return ['否','是','待通过'];   // UI改造#6：三态
+        case 'waAdded':     return ['否','是'];
+        case 'lost':        return ['否::在跟','是::战败'];
+        default:            return null;
+      }
+    }
+    // 单元格内部 HTML（不含外层 .ed 包裹层）——整表渲染与单格刷新的唯一真源
+    function custCellInner(c, field) {
+      const dash = v => v ? escapeHtml(v) : '<span class="ed-empty">—</span>';
+      switch (field) {
+        case 'name': {
+          const dn = custDisplayName(c);
+          return '<span class="cust-name-en">' + escapeHtml(dn) + '</span>' +
+            (c.nameCn && c.nameCn !== dn ? '<span class="cust-name-cn">' + escapeHtml(c.nameCn) + '</span>' : '');
+        }
+        case 'country': {
+          const all = custCountryAll(c);
+          const first = custFirstCountry(c);
+          const more = all.length > 1
+            ? '<span class="country-more" title="' + escapeHtml(all.join(' / ')) + '">+' + (all.length - 1) + '</span>' : '';
+          return (first ? escapeHtml(normalizeCountry(first) || first) : '<span class="ed-empty">未标注</span>') + more;
+        }
+        case 'touchStage': {
+          const t = custTouchStage(c);
+          return t ? '<span class="tag tag-quote">' + escapeHtml(t) + '</span>' : '<span class="ed-empty">未触达</span>';
+        }
+        case 'lastContact': return c.lastContact ? formatDate(c.lastContact) : '<span class="ed-empty">—</span>';
+        case 'nextContact': return c.nextContact ? formatDate(c.nextContact) : '<span class="ed-empty">—</span>';
+        case 'leadTime':    return c.leadTime ? formatDate(c.leadTime) : '<span class="ed-empty">—</span>';
+        case 'nextAction':  return dash(c.nextAction);
+        case 'owner':       return dash(c.owner);
+        case 'source':      return dash(c.source);
+        case 'stage':       return '<span class="tag ' + getStageClass(c.stage) + '">' + getStageText(c.stage) + '</span>';
+        case 'level':       return '<span class="tag ' + getLevelClass(c.level) + '">' + (c.level || '-') + '级</span>';
+        case 'wechatAdded': return c.wechatAdded === '是'
+          ? '<span class="tag tag-yes">是</span>'
+          : (c.wechatAdded === '待通过' ? '<span class="tag tag-pending">待通过</span>' : '<span class="tag tag-no">否</span>');
+        case 'waAdded':     return c.waAdded === '是' ? '<span class="tag tag-yes">是</span>' : '<span class="tag tag-no">否</span>';
+        case 'lost':        return c.lost === '是' ? '<span class="tag tag-lost">战败</span>' : '<span class="tag tag-no">在跟</span>';
+        default:            return dash(c[field]);
+      }
+    }
+    // 组装一个可编辑单元格（.ed 包裹层 + 内容）
+    function custEdCell(c, field) {
+      return edCell(c, field, CUST_ED_TYPE[field] || 'text', custCellInner(c, field), custEdOpts(field));
+    }
+    // 按 data-cid 找到表格行：优先走 querySelector，遇到特殊字符再退化为线性扫描，保证永不抛异常
+    function custRowEl(cid) {
+      const tb = document.getElementById('customerTableBody');
+      if (!tb) return null;
+      const key = String(cid);
+      try {
+        const hit = tb.querySelector('tr[data-cid=' + JSON.stringify(key) + ']');
+        if (hit) return hit;
+      } catch (e) {}
+      const rows = tb.rows;
+      for (let i = 0; i < rows.length; i++) {
+        if (rows[i].getAttribute('data-cid') === key) return rows[i];
+      }
+      return null;
+    }
+    /* 只重绘一个单元格（编辑单字段的快路径）。
+       返回 true 表示刷新成功；返回 false 表示 DOM 上找不到目标，调用方应回退到整表渲染。 */
+    function updateSingleCell(cid, field) {
+      const c = (appData.customers || []).find(x => String(x.id) === String(cid));
+      if (!c) return false;
+      const row = custRowEl(cid);
+      if (!row) return false;
+      const cell = row.querySelector('.ed[data-f="' + field + '"]');
+      if (!cell) return false;
+      cell.innerHTML = custCellInner(c, field);
+      // 下拉选项可能随数据变化（例如「来源」新增了取值），同步回 data-opts
+      const opts = custEdOpts(field);
+      if (opts) cell.setAttribute('data-opts', opts.join('|'));
+      // 「跟进阶段」单元格里还挂了一根进度条，跟着一起更新
+      if (field === 'stage') {
+        const prog = getStageProgress(c.stage);
+        const bar = row.querySelector('.stage-progress');
+        const fill = row.querySelector('.stage-progress-fill');
+        if (fill) fill.style.width = prog + '%';
+        if (bar) bar.setAttribute('title', '跟进进度 ' + prog + '%');
+      }
+      return true;
+    }
+    // 只重绘电话列（号码编辑器专用，同样避免整表刷新）
+    function updatePhoneCell(cid) {
+      const row = custRowEl(cid);
+      if (!row) return false;
+      const c = (appData.customers || []).find(x => String(x.id) === String(cid));
+      const td = row.querySelector('td.col-phone');
+      if (!c || !td) return false;
+      td.innerHTML = phoneCellHtml(c);
+      return true;
+    }
+
     function renderCustomers() {
       renderCustFilterBar();
+      // 整表渲染是权威刷新：顺手让「来源」下拉缓存失效，保证弹窗改过来源后选项也是最新的
+      _srcOptsCache = null; _srcOptsSig = '';
       // UI改造#5：确保每个客户都有永久编号（只在有变动时落盘一次）
       if (ensureCustomerNos()) { try { saveData(appData); } catch (e) {} }
       let list = getFilteredCustomers();
@@ -4868,60 +5038,41 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
       const ca = document.getElementById('custCountAll'); if (ca) ca.textContent = (appData.customers || []).length;
       updateRowCountBadge(list.length);   // UI改造#3
       const tbody = document.getElementById('customerTableBody');
-      const stageOpts = (categories.stages || []).map(s => s.value + '::' + s.text);
-      const srcOpts = Array.from(new Set((appData.customers || []).map(c => c.source).filter(Boolean)
-        .concat(['WORK BUDDY开发','展会','独立站','阿里巴巴','社媒','LinkedIn','邮件','转介绍','手动录入'])));
       tbody.innerHTML = list.map(c => {
         const prog = getStageProgress(c.stage);
-        const cs2 = custCountryAll(c);
-        const first = custFirstCountry(c);
-        const more = cs2.length > 1
-          ? '<span class="country-more" title="' + escapeHtml(cs2.join(' / ')) + '">+' + (cs2.length - 1) + '</span>' : '';
-        const touch = custTouchStage(c);
-        const touchHtml = touch
-          ? '<span class="tag tag-quote">' + escapeHtml(touch) + '</span>'
-          : '<span class="ed-empty">未触达</span>';
-        // UI改造#6：已加微支持「否 / 是 / 待通过」三态
-        const wechat = c.wechatAdded === '是'
-          ? '<span class="tag tag-yes">是</span>'
-          : (c.wechatAdded === '待通过' ? '<span class="tag tag-pending">待通过</span>' : '<span class="tag tag-no">否</span>');
-        const wa = c.waAdded === '是' ? '<span class="tag tag-yes">是</span>' : '<span class="tag tag-no">否</span>';
-        const lost = c.lost === '是' ? '<span class="tag tag-lost">战败</span>' : '<span class="tag tag-no">在跟</span>';
-        const dn = custDisplayName(c);
-        const nameHtml = '<span class="cust-name-en">' + escapeHtml(dn) + '</span>' +
-          (c.nameCn && c.nameCn !== dn ? '<span class="cust-name-cn">' + escapeHtml(c.nameCn) + '</span>' : '');
-        const dash = v => v ? escapeHtml(v) : '<span class="ed-empty">—</span>';
+        const cid = escapeHtml(String(c.id));
         // UI改造#4a/#4b：操作列前移到「客户名称」之后，编辑/删除按钮用 data-cid + 事件委托，彻底消除引号嵌套问题
+        // UI改造#12：三个按钮改为纵向堆叠（样式在 .ops-wrap 里控制），列宽由 180px 收到 62px
         const opsHtml = '<div class="ops-wrap">'
-          + '<button class="btn btn-sm btn-info" data-act="view" data-cid="' + escapeHtml(String(c.id)) + '">详情</button>'
-          + (_admin ? '<button class="btn btn-sm btn-secondary" data-act="edit" data-cid="' + escapeHtml(String(c.id)) + '">编辑</button>' : '')
-          + (_admin ? '<button class="btn btn-sm btn-danger" data-act="del" data-cid="' + escapeHtml(String(c.id)) + '">删除</button>' : '')
+          + '<button class="btn btn-sm btn-info" data-act="view" data-cid="' + cid + '">详情</button>'
+          + (_admin ? '<button class="btn btn-sm btn-secondary" data-act="edit" data-cid="' + cid + '">编辑</button>' : '')
+          + (_admin ? '<button class="btn btn-sm btn-danger" data-act="del" data-cid="' + cid + '">删除</button>' : '')
           + '</div>';
         return `
-        <tr data-cid="${escapeHtml(String(c.id))}">
+        <tr data-cid="${cid}">
           <td class="col-no">${escapeHtml(String(c.custNo == null ? '' : c.custNo))}</td>
-          <td class="col-name">${edCell(c, 'name', 'text', nameHtml)}</td>
+          <td class="col-name">${custEdCell(c, 'name')}</td>
           <td class="col-ops">${opsHtml}</td>
-          <td class="col-phone" data-cid="${escapeHtml(String(c.id))}" title="双击可编辑号码">${phoneCellHtml(c)}</td>
-          <td>${edCell(c, 'country', 'text', (first ? escapeHtml(normalizeCountry(first) || first) : '<span class="ed-empty">未标注</span>') + more)}</td>
+          <td class="col-phone" data-cid="${cid}" title="双击可编辑号码">${phoneCellHtml(c)}</td>
+          <td class="c-country">${custEdCell(c, 'country')}</td>
           <!-- UI改造#9a: 触达/跟进四栏前移到「国家」之后，与表头顺序严格一一对应 -->
-          <td>${edCell(c, 'touchStage', 'select', touchHtml, ['::未触达'].concat(TOUCH_OPTS))}</td>
-          <td>${edCell(c, 'lastContact', 'date', c.lastContact ? formatDate(c.lastContact) : '<span class="ed-empty">—</span>')}</td>
-          <td>${edCell(c, 'nextContact', 'date', c.nextContact ? formatDate(c.nextContact) : '<span class="ed-empty">—</span>')}</td>
-          <td>${edCell(c, 'nextAction', 'select', dash(c.nextAction), ['::— 未安排 —'].concat(NEXT_ACTION_OPTS).concat(['__other__::其他（双击填写内容）']))}</td>
-          <td style="min-width:150px;">
-            ${edCell(c, 'stage', 'select', '<span class="tag ' + getStageClass(c.stage) + '">' + getStageText(c.stage) + '</span>', stageOpts)}
+          <td class="c-touch">${custEdCell(c, 'touchStage')}</td>
+          <td class="c-lastContact">${custEdCell(c, 'lastContact')}</td>
+          <td class="c-nextContact">${custEdCell(c, 'nextContact')}</td>
+          <td class="c-nextAction">${custEdCell(c, 'nextAction')}</td>
+          <td class="c-stage">
+            ${custEdCell(c, 'stage')}
             <div class="stage-progress" title="跟进进度 ${prog}%">
               <div class="stage-progress-fill" style="width:${prog}%;"></div>
             </div>
           </td>
-          <td>${edCell(c, 'owner', 'text', dash(c.owner))}</td>
-          <td>${edCell(c, 'level', 'select', '<span class="tag ' + getLevelClass(c.level) + '">' + (c.level || '-') + '级</span>', ['A::A级','B::B级','C::C级','D::D级'])}</td>
-          <td>${edCell(c, 'source', 'select', dash(c.source), srcOpts)}</td>
-          <td>${edCell(c, 'leadTime', 'date', c.leadTime ? formatDate(c.leadTime) : '<span class="ed-empty">—</span>')}</td>
-          <td>${edCell(c, 'wechatAdded', 'select', wechat, ['否','是','待通过'])}</td>
-          <td>${edCell(c, 'waAdded', 'select', wa, ['否','是'])}</td>
-          <td>${edCell(c, 'lost', 'select', lost, ['否::在跟','是::战败'])}</td>
+          <td class="c-owner">${custEdCell(c, 'owner')}</td>
+          <td class="c-level">${custEdCell(c, 'level')}</td>
+          <td class="c-source">${custEdCell(c, 'source')}</td>
+          <td class="c-leadTime">${custEdCell(c, 'leadTime')}</td>
+          <td class="c-wechatAdded">${custEdCell(c, 'wechatAdded')}</td>
+          <td class="c-waAdded">${custEdCell(c, 'waAdded')}</td>
+          <td class="c-lost">${custEdCell(c, 'lost')}</td>
         </tr>
       `;
       }).join('');
@@ -5087,7 +5238,11 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
       c.phone = '';   // 历史字段内容已合并进上面两个字段，避免重复展示
       saveData(appData);
       closeModal('phoneEditorModal');
-      renderCustomers();
+      // UI改造#12（性能）：只重画电话那一格；若该行因关键词筛选而进出可见集合，再回退整表渲染
+      const _plist = getFilteredCustomers();
+      const _ptb = document.getElementById('customerTableBody');
+      const _prows = _ptb ? _ptb.querySelectorAll('tr[data-cid]').length : -1;
+      if (_prows !== _plist.length || _plist.indexOf(c) < 0 || !updatePhoneCell(c.id)) renderCustomers();
       if (typeof toast === 'function') toast('号码已更新（' + (cn.length + os.length) + ' 个）');
     }
 
@@ -5165,31 +5320,80 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
     // ================= 需求9：客户管理首页行内编辑 =================
     // 双击任意单元格 → 就地变成 input / date / select，回车或失焦即写回 localStorage
     let edActive = null;
+
+    /* ================= UI改造#12（性能）：编辑后的增量刷新 =================
+       旧实现：每次 edCommit 都跑一遍 renderCustomers()，
+       等于「重绘筛选栏 + 遍历全量客户重编号 + 全量过滤 + 逐行重算 17 列 + 整块 innerHTML + 重算滚动条」，
+       3000+ 条数据下双击编辑要卡顿好几百毫秒。
+       新实现：只重画被改动的那 1~2 个单元格；
+       仅当「行的可见性/行数发生变化」这类结构性变更时，才回退到整表渲染。 */
+
+    // 改动某字段会连带影响同一行的哪些单元格
+    const ED_AFFECTED_CELLS = {
+      // 触达结果为空 → 首次填写时会自动补「最近联系」日期，两格都要刷
+      touchStage: ['touchStage', 'lastContact']
+    };
+    // 筛选栏 chip 计数 / 仪表盘都比较重，且不影响当前编辑手感，统一延后合并执行
+    let _custSideRefreshTimer = null;
+    function scheduleCustSideRefresh() {
+      if (_custSideRefreshTimer) clearTimeout(_custSideRefreshTimer);
+      _custSideRefreshTimer = setTimeout(function () {
+        _custSideRefreshTimer = null;
+        try { renderCustFilterBar(); } catch (e) {}
+        try { syncThFilterIcons(); } catch (e) {}
+        try { renderDashboard(); } catch (e) {}
+      }, 600);
+    }
+    // 编辑被取消 / 值没变时，就地还原这一格，不整表重绘
+    function edRestoreCell(box) {
+      const c = (appData.customers || []).find(x => String(x.id) === String(box.getAttribute('data-id')));
+      const f = box.getAttribute('data-f');
+      if (c && f) box.innerHTML = custCellInner(c, f);
+      else renderCustomers();
+    }
+    // 提交成功后刷新视图：能走单格快路径就走，否则整表重绘
+    function edRefreshAfterCommit(c, f) {
+      const tbody = document.getElementById('customerTableBody');
+      const list = getFilteredCustomers();
+      const domRows = tbody ? tbody.querySelectorAll('tr[data-cid]').length : -1;
+      // 结构性变更（改完之后这一行被筛掉了 / 总行数变了）→ 必须整表重绘
+      if (domRows !== list.length || list.indexOf(c) < 0) { renderCustomers(); scheduleCustSideRefresh(); return; }
+      const fields = ED_AFFECTED_CELLS[f] || [f];
+      for (let i = 0; i < fields.length; i++) {
+        if (!updateSingleCell(c.id, fields[i])) { renderCustomers(); scheduleCustSideRefresh(); return; }
+      }
+      // 行数没变，但计数标签仍同步一次，保证与筛选状态一致
+      updateRowCountBadge(list.length);
+      const cs = document.getElementById('custCountShown'); if (cs) cs.textContent = list.length;
+      scheduleCustSideRefresh();
+    }
+
     function edCommit(box, val) {
       const id = box.getAttribute('data-id');
       const f  = box.getAttribute('data-f');
       const c  = appData.customers.find(x => String(x.id) === String(id));
       edActive = null;
       if (!c) { renderCustomers(); return; }
-      if (!canSeeCustomer(c)) { alert('您只能修改自己负责的客户。'); renderCustomers(); return; }
-      if (!edFieldAllowed(f)) { alert('您没有权限修改该字段。'); renderCustomers(); return; }
+      if (!canSeeCustomer(c)) { alert('您只能修改自己负责的客户。'); edRestoreCell(box); return; }
+      if (!edFieldAllowed(f)) { alert('您没有权限修改该字段。'); edRestoreCell(box); return; }
       if (f === 'nextAction' && val === '__other__') {
         const custom = prompt('请填写具体的下一步行动内容：');
-        if (custom === null) { renderCustomers(); return; }
+        if (custom === null) { edRestoreCell(box); return; }
         val = (custom || '').trim() || '其他';
       }
       const old = c[f] == null ? '' : String(c[f]);
-      if (String(val) === old) { renderCustomers(); return; }
+      if (String(val) === old) { edRestoreCell(box); return; }
       c[f] = val;
       // 联动：改了客户名/等级/下一步行动，待办同步；改触达结果自动补最近联系日
       if (f === 'touchStage' && val && !c.lastContact) c.lastContact = todayStr();
       if (f === 'name' || f === 'nextAction' || f === 'level' || f === 'nextContact' || f === 'owner') {
         try { syncCustomerTodo(c); } catch (e) {}
       }
+      // 「来源」新增取值时让下拉选项缓存失效，下次渲染重新收集
+      if (f === 'source') { _srcOptsCache = null; _srcOptsSig = ''; }
       markSyncEdit();
       saveData(appData);
-      renderCustomers();
-      try { renderDashboard(); } catch (e) {}
+      edRefreshAfterCommit(c, f);
       // 本地已落库；云端结果由同步层在推送完成后再补一条 toast（✅ 已同步 / ⚠️ 同步失败）
       toast('已保存：' + (custDisplayName(c) || '客户') + ' · ' + edFieldLabel(f) + '，正在同步…');
     }
