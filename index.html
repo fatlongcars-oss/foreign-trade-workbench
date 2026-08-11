@@ -3032,6 +3032,7 @@ ___DATA___
       lc.forEach(function(c){ if (c && c.id != null) byId[''+c.id] = c; }); // 本地修改优先
       var customers = [];
       for (var k in byId) { if (byId.hasOwnProperty(k)) customers.push(byId[k]); }
+      customers = realCustList(customers);   // 【防护②】并集里同样剔除数字 id 演示种子
       var out = JSON.parse(JSON.stringify(local.main || {}));
       out.customers = customers;
       function mo(a, b){
@@ -3049,6 +3050,110 @@ ___DATA___
     //         （通常只有 main/customers/<idx> 一条），payload 从 MB 级降到 KB 级。
     var SYNC_KEYS = { 'foreignTradeWorkbench_v1':'main', 'wt_nav_v1':'nav', 'wt_categories_v1':'cat', 'wt_titles_v1':'title' };
     var MAX_RETRY = 3;
+
+    // ==================== 数据回流防护（2026-08-11 事故加固）====================
+    // 事故回顾：某浏览器里 localStorage 存的是旧快照（1085 条、数字 id、缺 detail），
+    //          经 onValue → threeWayMerge → doPush 链路把 /state/main/customers 整表覆盖，
+    //          冲掉 3294 条完整数据 + 最近跟进，并把已废弃的 Echo/Aksen owner 混了回来。
+    // 防护原则：① 更少的数据永远不许推上云端；② 数字 id 的演示种子一律丢弃；
+    //          ③ 合并只做「字段级叠加」，绝不整条/整表替换。
+    const SYNC_PUSH_ENABLED = true;      // 总开关：设为 false 则本浏览器彻底只读，不向云端推送任何改动
+    var SYNC_SHRINK_ABS = 20;            // 条数减少超过该绝对值即视为可疑收缩
+    var SYNC_SHRINK_RATIO = 0.95;        // 且剩余比例低于该值才判定为可疑收缩（允许正常的少量删除）
+    var remoteCustCount = -1;            // 最近一次 onValue 观测到的远端「真实客户」条数（-1 = 未知）
+    var pushBlockReason = '';            // 非空 = 上一次推送被防护拦截（用于抑制重复告警）
+
+    // 数字 id 一律视为演示种子（真实客户 id 均为字符串）
+    function isSeedId(id){ return typeof id === 'number'; }
+    // 剔除演示种子后的客户列表（不改动入参）
+    function realCustList(list){
+      if (!Array.isArray(list)) return [];
+      var out = [];
+      for (var i = 0; i < list.length; i++) {
+        var c = list[i];
+        if (c && isSeedId(c.id)) continue;   // 丢弃数字 id 的演示种子
+        out.push(c);
+      }
+      return out;
+    }
+    function realCustCount(list){ return realCustList(list).length; }
+    function stateCustList(state){
+      var main = (state && state.main) || {};
+      return Array.isArray(main.customers) ? main.customers : [];
+    }
+    // 本地真实客户条数（带缓存：主数据可达数 MB，onValue 高频触发时避免重复全量 JSON.parse）
+    var _localCountCache = { src: null, n: 0 };
+    function localCustCountFast(){
+      var src = MEM['foreignTradeWorkbench_v1'] || '';
+      if (_localCountCache.src === src) return _localCountCache.n;
+      var n = 0;
+      try { n = realCustCount((JSON.parse(src || '{}') || {}).customers); } catch(e){ n = 0; }
+      _localCountCache.src = src;
+      _localCountCache.n = n;
+      return n;
+    }
+    // 判定「收缩是否可疑」：既要少得够多（绝对值），又要少得够狠（比例），避免误伤正常删除
+    function isSuspiciousShrink(fromCount, toCount){
+      if (!(fromCount > 0)) return false;
+      if (!(toCount >= 0)) return false;
+      if (fromCount - toCount <= SYNC_SHRINK_ABS) return false;
+      return toCount < fromCount * SYNC_SHRINK_RATIO;
+    }
+    // 空值判定：本地的空值绝不允许覆盖远端的非空值
+    function isBlankVal(v){
+      if (v == null || v === '') return true;
+      if (Array.isArray(v)) return v.length === 0;
+      if (typeof v === 'object') { for (var k in v) { if (Object.prototype.hasOwnProperty.call(v, k)) return false; } return true; }
+      return false;
+    }
+    // 单层字段级叠加：以 remote 为底，仅把「本地非空 且 相对基线确实改过」的字段覆盖上去
+    function overlayFields(remoteObj, localObj, baseObj){
+      var out = plain(remoteObj);
+      if (out == null || typeof out !== 'object' || Array.isArray(out)) out = {};
+      if (!localObj || typeof localObj !== 'object') return out;
+      Object.keys(localObj).forEach(function(f){
+        var lv = localObj[f];
+        if (isBlankVal(lv)) return;                                        // 本地空 → 保留远端
+        if (baseObj && safeStr(baseObj[f]) === safeStr(lv)) return;        // 本地未改 → 采信远端
+        out[f] = lv;
+      });
+      return out;
+    }
+    // 客户记录合并：detail 再下钻一层，保护 detail.scripts / detail.contact 不被空值抹掉
+    function mergeCustomerRecord(remoteRec, localRec, baseRec){
+      var out = overlayFields(remoteRec, localRec, baseRec);
+      var lDetail = localRec && localRec.detail;
+      var rDetail = remoteRec && remoteRec.detail;
+      if (lDetail && typeof lDetail === 'object' && !Array.isArray(lDetail)) {
+        out.detail = overlayFields(rDetail, lDetail, (baseRec && baseRec.detail) || null);
+      } else if (isBlankVal(lDetail) && !isBlankVal(rDetail)) {
+        out.detail = plain(rDetail);                                       // 本地缺 detail → 保留远端 detail
+      }
+      if (remoteRec && remoteRec.id != null) out.id = remoteRec.id;        // id 恒以远端为准，避免错位
+      return out;
+    }
+    // 推送前的最后一道闸：本地（真实条数）少于远端即中止
+    function guardPush(state){
+      if (!SYNC_PUSH_ENABLED) {
+        warnBlock('disabled', 'SYNC_PUSH_ENABLED=false，已阻止向云端推送（本浏览器为只读模式）');
+        return false;
+      }
+      var localCount = realCustCount(stateCustList(state));
+      if (remoteCustCount >= 0 && localCount < remoteCustCount) {
+        warnBlock('shrink:' + localCount + '/' + remoteCustCount,
+          '本地客户 ' + localCount + ' 条 < 云端 ' + remoteCustCount + ' 条，已中止推送（防止旧数据覆盖云端）。'
+          + '请先刷新页面拉取云端最新数据，再重新操作。');
+        return false;
+      }
+      pushBlockReason = '';
+      return true;
+    }
+    function warnBlock(reason, msg){
+      if (pushBlockReason === reason) return;   // 同一原因只提示一次，避免 15s 自愈循环刷屏
+      pushBlockReason = reason;
+      console.warn('[SYNC-GUARD] ' + msg);
+      try { setSync('error', '⛔ ' + msg); } catch(e){}
+    }
     var base = null;                 // 服务端基线快照 { cust, order, rest, nav, cat, title }
     var saveTimer = null;            // 防抖计时器
     var retryTimer = null;           // 重试计时器
@@ -3153,6 +3258,20 @@ ___DATA___
         notifyPushResult(false, e);
         return;
       }
+      // 【防护①】推送闸门：本地数据更少 / 开关关闭 → 直接中止，绝不写云端
+      if (!guardPush(state)) return;
+      // 【防护①-b】整表覆盖（main/customers）是本次事故的直接凶手：
+      //            仅当本地真实条数 >= 远端时才放行，否则剔除该路径只推增量字段。
+      if (Object.prototype.hasOwnProperty.call(updates, 'main/customers')) {
+        var wholeCount = realCustCount(updates['main/customers']);
+        if (remoteCustCount >= 0 && wholeCount < remoteCustCount) {
+          console.warn('[SYNC-GUARD] 已拦截 main/customers 整表覆盖：本地 ' + wholeCount + ' 条 < 云端 ' + remoteCustCount + ' 条');
+          delete updates['main/customers'];
+        } else {
+          // 整表推送前顺手剔除数字 id 的演示种子，避免把脏种子写回云端
+          updates['main/customers'] = realCustList(updates['main/customers']);
+        }
+      }
       var keys = Object.keys(updates);
       if (!keys.length) {
         // 与云端已一致（常见于自己推送后的回包）
@@ -3221,6 +3340,13 @@ ___DATA___
       retryCount = 0;
       if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
       scheduleMirror();
+      // 【防护①-c】总开关关闭时只落盘本地、绝不排队推送（条数闸门放在 doPush，避免每次写入都全量 JSON.parse）
+      if (!SYNC_PUSH_ENABLED) {
+        localDirty = false;
+        pendingPushAfterSync = false;
+        warnBlock('disabled', 'SYNC_PUSH_ENABLED=false，改动仅保存在本地，不推送云端');
+        return;
+      }
       if (!remoteReady) { pendingPushAfterSync = true; setSync('pushing', '等待云端连接…'); return; }
       if (pushing) { pushAgain = true; return; }
       if (saveTimer) return;
@@ -3248,22 +3374,35 @@ ___DATA___
       var baseCust = (oldBase && oldBase.cust) || null;
       var lMain = (local && local.main) || {};
       var rMain = (remote && remote.main) || {};
-      var lList = Array.isArray(lMain.customers) ? lMain.customers : [];
-      var rList = Array.isArray(rMain.customers) ? rMain.customers : [];
+      // 【防护②】两侧一律剔除数字 id 的演示种子，再参与合并
+      var lList = realCustList(lMain.customers);
+      var rList = realCustList(rMain.customers);
       var lById = {}, lStr = {};
       lList.forEach(function(c){ if (c && c.id != null) { var k = '' + c.id; lById[k] = c; lStr[k] = safeStr(c); } });
+
+      // 【防护③】本地明显收缩（旧快照）时，不承认任何「本地删除」，远端记录一律保留
+      var allowLocalDeletes = !isSuspiciousShrink(rList.length, lList.length);
+      if (!allowLocalDeletes) {
+        console.warn('[SYNC-GUARD] 本地客户 ' + lList.length + ' 条远少于云端 ' + rList.length
+          + ' 条，判定为本地旧快照：本轮合并忽略所有本地删除，仅叠加本地字段改动');
+      }
 
       var out = [], seen = {};
       rList.forEach(function(rc){
         if (!rc || rc.id == null) { out.push(rc); return; }
         var k = '' + rc.id; seen[k] = 1;
         if (!Object.prototype.hasOwnProperty.call(lById, k)) {
-          // 本地没有这条：基线里也没有 → 别人新增的，收下；基线里有 → 本地删过，保持删除
-          if (!baseCust || !Object.prototype.hasOwnProperty.call(baseCust, k)) out.push(rc);
+          // 本地没有这条：基线里也没有 → 别人新增的，收下；
+          // 基线里有 → 本地删过；但本地是旧快照时（allowLocalDeletes=false）不承认删除，保留远端
+          if (!allowLocalDeletes || !baseCust || !Object.prototype.hasOwnProperty.call(baseCust, k)) out.push(rc);
           return;
         }
         var changedLocally = !baseCust || baseCust[k] !== lStr[k];
-        out.push(changedLocally ? lById[k] : rc);
+        if (!changedLocally) { out.push(rc); return; }               // 本地没改 → 完全采信远端
+        // 【防护④】本地改过也绝不整条替换：以远端为底，只叠加本地「非空且相对基线有变化」的字段
+        var baseRec = null;
+        if (baseCust && baseCust[k]) { try { baseRec = JSON.parse(baseCust[k]); } catch(e){ baseRec = null; } }
+        out.push(mergeCustomerRecord(rc, lById[k], baseRec));
       });
       lList.forEach(function(c){
         if (!c || c.id == null) return;
@@ -3309,12 +3448,38 @@ ___DATA___
         // 空库同样属于「已连通」：必须点亮状态灯，否则首个用户会误判为未连协同
         setStatus(true);
         base = null;
+        remoteCustCount = 0;
         doPush();
         if (pendingPushAfterSync) { pendingPushAfterSync = false; schedulePush(); }
         return;
       }
       var remote = { main: val.main, nav: val.nav, cat: val.cat, title: val.title };
       if (remote.main && !Array.isArray(remote.main.customers)) remote.main.customers = objToArr(remote.main.customers);
+      // 【防护②】应用远端数据前，丢弃 id 为数字的演示种子（历史遗留的 1~8 号假数据）
+      if (remote.main && Array.isArray(remote.main.customers)) {
+        var rawRemoteLen = remote.main.customers.length;
+        remote.main.customers = realCustList(remote.main.customers);
+        if (rawRemoteLen !== remote.main.customers.length) {
+          console.warn('[SYNC-GUARD] 已丢弃云端 ' + (rawRemoteLen - remote.main.customers.length) + ' 条数字 id 演示种子');
+        }
+      }
+      // 记录远端「真实条数」，供推送闸门比较（这是防止旧数据覆盖的核心基准）
+      remoteCustCount = realCustCount((remote.main && remote.main.customers) || []);
+      var localCustCount = localCustCountFast();
+      // 【防护③】远端条数远少于本地 → 优先保留本地，改走保底合并（union），绝不让远端把本地抹掉
+      if (isSuspiciousShrink(localCustCount, remoteCustCount)) {
+        console.warn('[SYNC-GUARD] 云端客户 ' + remoteCustCount + ' 条远少于本地 ' + localCustCount
+          + ' 条，疑似云端被旧数据覆盖：本轮保留本地数据并按 id 并集合并');
+        // 本地优先的并集合并：远端缺失的记录由本地补回，避免刷新即丢
+        try { writeMem(mergeState(localState(), remote)); }
+        catch(e){ console.error('FB shrink-guard merge failed, keep local as-is', e); }
+        base = snapshotOf(remote);
+        setStatus(true);
+        if (syncPhase !== 'error') setSync('ok');
+        if (pendingPushAfterSync) { pendingPushAfterSync = false; schedulePush(); }
+        if (window.__onRemoteUpdate) window.__onRemoteUpdate();
+        return;
+      }
       if (localDirty) {
         // 关键修复：本地还有未确认同步的改动时，绝不能被远端整包覆盖。
         // 否则用户刚填的「下一行动」会在 800ms 防抖窗口内被自己/他人的监听回包抹掉。
