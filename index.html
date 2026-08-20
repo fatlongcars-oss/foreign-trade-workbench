@@ -358,9 +358,9 @@
       max-width: 100%;
       scrollbar-width: thin;
     }
-    .table-wrap::-webkit-scrollbar { height: 10px; }
-    .table-wrap::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
-    .table-wrap::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 6px; }
+    .table-wrap::-webkit-scrollbar { height: 6px; }
+    .table-wrap::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+    .table-wrap::-webkit-scrollbar-track { background: #f1f5f9; }
     /* 客户表列多，给最小宽度让它在容器内横向滚动，而不是把整页撑破 */
     #customerTableBody { }
     .table-wrap table.wide { min-width: 1280px; }
@@ -380,11 +380,11 @@
       border-radius: 0 0 12px 12px;
     }
     /* UI改造#11: 原生横向滚动条彻底去掉（只保留纵向），横向统一用底部常驻自定义条 */
-    .cust-scroll::-webkit-scrollbar { height: 0 !important; width: 12px; }
+    .cust-scroll::-webkit-scrollbar { height: 0 !important; width: 6px; }
     .cust-scroll::-webkit-scrollbar:horizontal { height: 0 !important; display: none !important; }
-    .cust-scroll::-webkit-scrollbar:vertical { width: 12px; }
-    .cust-scroll::-webkit-scrollbar-track { background: #eef2f7; }
-    .cust-scroll::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 8px; border: 3px solid #eef2f7; }
+    .cust-scroll::-webkit-scrollbar:vertical { width: 6px; }
+    .cust-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+    .cust-scroll::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
     .cust-scroll::-webkit-scrollbar-thumb:hover { background: #64748b; }
     .cust-scroll::-webkit-scrollbar-corner { background: #eef2f7; }
     /* 底部常驻横向滚动条：始终贴在视口底部，不随页面纵向滚动消失 */
@@ -412,43 +412,45 @@
     .cust-hscroll-thumb:hover, .cust-hscroll-thumb.dragging { background: #64748b; }
     .cust-hscroll-thumb.dragging { cursor: grabbing; }
     /* UI改造#4a/#4d/#5: 新增「编号 / 操作 / 联系电话」三列，表格最小宽度同步放大 */
-    /* UI改造#12: 全列瘦身——操作列改纵向、各列压缩留白，最小宽度由 2040px 降到 1360px */
-    .cust-scroll table.wide { min-width: 1360px; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+    /* UI改造#12: 全列瘦身——操作列改纵向、各列压缩留白，最小宽度由 2040px 降到 1200px */
+    .cust-scroll table.wide { min-width: 1200px; border-collapse: separate; border-spacing: 0; font-size: 12px; }
     .cust-scroll table.wide th,
     .cust-scroll table.wide td { border-bottom: 1px solid var(--border); }
     /* UI改造#12: 表头/单元格瘦身（只作用于客户表，不影响其它表格） */
-    .cust-scroll table.wide thead th { padding: 6px 6px; font-size: 11.5px; letter-spacing: 0; }
-    .cust-scroll table.wide tbody td { padding: 5px 6px; vertical-align: middle; }
-    .cust-scroll table.wide .tag { padding: 1px 6px; font-size: 11px; border-radius: 10px; }
-    .cust-scroll table.wide .ed-empty { font-size: 11px; }
-    .cust-scroll table.wide .stage-progress { margin-top: 3px; height: 3px; max-width: 92px; }
+    .cust-scroll table.wide thead th { padding: 4px 4px; font-size: 11px; letter-spacing: 0; }
+    .cust-scroll table.wide tbody td { padding: 3px 4px; vertical-align: middle; }
+    .cust-scroll table.wide .tag { padding: 1px 4px; font-size: 10px; border-radius: 8px; }
+    .cust-scroll table.wide .ed-empty { font-size: 10px; }
+    .cust-scroll table.wide .stage-progress { margin-top: 2px; height: 2px; max-width: 80px; }
     /* UI改造#12: 各数据列最小宽度收敛（表头 + 单元格按同一列序对齐） */
+    /* 大表性能优化：3294 行时只渲染可视区域行 */
+    .cust-scroll table.wide tbody tr { content-visibility: auto; contain-intrinsic-size: auto 38px; }
     .cust-scroll table.wide th[data-col="country"],
-    .cust-scroll table.wide td.c-country { min-width: 70px; font-size: 12px; }
+    .cust-scroll table.wide td.c-country { min-width: 56px; font-size: 11px; }
     .cust-scroll table.wide th[data-col="touch"],
-    .cust-scroll table.wide td.c-touch { min-width: 65px; }
+    .cust-scroll table.wide td.c-touch { min-width: 52px; }
     .cust-scroll table.wide th[data-col="lastContact"],
     .cust-scroll table.wide th[data-col="nextContact"],
     .cust-scroll table.wide td.c-lastContact,
-    .cust-scroll table.wide td.c-nextContact { min-width: 75px; font-size: 11.5px; }
+    .cust-scroll table.wide td.c-nextContact { min-width: 62px; font-size: 11px; }
     .cust-scroll table.wide th[data-col="nextAction"],
-    .cust-scroll table.wide td.c-nextAction { min-width: 90px; font-size: 11.5px; }
+    .cust-scroll table.wide td.c-nextAction { min-width: 72px; font-size: 11px; }
     .cust-scroll table.wide th[data-col="stage"],
-    .cust-scroll table.wide td.c-stage { min-width: 100px; }
+    .cust-scroll table.wide td.c-stage { min-width: 82px; }
     .cust-scroll table.wide th[data-col="owner"],
-    .cust-scroll table.wide td.c-owner { min-width: 55px; }
+    .cust-scroll table.wide td.c-owner { min-width: 48px; }
     .cust-scroll table.wide th[data-col="level"],
-    .cust-scroll table.wide td.c-level { min-width: 40px; }
+    .cust-scroll table.wide td.c-level { min-width: 34px; }
     .cust-scroll table.wide th[data-col="source"],
-    .cust-scroll table.wide td.c-source { min-width: 70px; font-size: 12px; }
+    .cust-scroll table.wide td.c-source { min-width: 58px; font-size: 11px; }
     .cust-scroll table.wide th[data-col="leadTime"],
-    .cust-scroll table.wide td.c-leadTime { min-width: 75px; font-size: 11.5px; }
+    .cust-scroll table.wide td.c-leadTime { min-width: 62px; font-size: 11px; }
     .cust-scroll table.wide th[data-col="wechat"],
     .cust-scroll table.wide th[data-col="wa"],
     .cust-scroll table.wide th[data-col="lost"],
     .cust-scroll table.wide td.c-wechatAdded,
     .cust-scroll table.wide td.c-waAdded,
-    .cust-scroll table.wide td.c-lost { min-width: 50px; }
+    .cust-scroll table.wide td.c-lost { min-width: 42px; }
     /* 表头冻结 */
     .cust-scroll table.wide thead th {
       position: sticky; top: 0; z-index: 3;
@@ -460,13 +462,13 @@
     .cust-scroll table.wide td.col-name {
       position: sticky; left: 42px; z-index: 2;
       background: #fff;
-      min-width: 120px; max-width: 210px;
+      min-width: 100px; max-width: 180px;
       box-shadow: 2px 0 0 0 var(--border), 6px 0 10px -8px rgba(15,23,42,.25);
     }
     .cust-scroll table.wide thead th.col-name { z-index: 4; background: #f1f5f9; }
     .cust-scroll table.wide tr:hover td.col-name { background: #f9fafb; }
-    .cust-name-en { font-weight: 700; color: var(--text-primary); display: block; line-height: 1.3; white-space: normal; font-size: 12.5px; }
-    .cust-name-cn { font-weight: 500; color: var(--text-secondary); font-size: 11.5px; display: block; line-height: 1.3; white-space: normal; margin-top: 1px; }
+    .cust-name-en { font-weight: 700; color: var(--text-primary); display: block; line-height: 1.25; white-space: normal; font-size: 11.5px; }
+    .cust-name-cn { font-weight: 500; color: var(--text-secondary); font-size: 10.5px; display: block; line-height: 1.25; white-space: normal; margin-top: 1px; }
     .country-more { display: inline-block; margin-left: 5px; padding: 1px 6px; border-radius: 8px; background: #eef2ff; color: #4f46e5; font-size: 11px; font-weight: 700; cursor: help; }
 
     /* ===== 首页行内编辑 ===== */
@@ -797,6 +799,7 @@
       z-index: 2000;
       display: none; align-items: center; justify-content: center;
       padding: 16px;
+      contain: layout style;
     }
     .modal-overlay.active { display: flex; }
     .modal {
@@ -1009,6 +1012,8 @@
     }
 
     /* 滚动条 */
+    html { scrollbar-width: thin; scrollbar-color: #94a3b8 #f1f5f9; }
+    * { scrollbar-width: inherit; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
@@ -3192,10 +3197,12 @@ ___DATA___
     //          经 onValue → threeWayMerge → doPush 链路把 /state/main/customers 整表覆盖，
     //          冲掉 3294 条完整数据 + 最近跟进，并把已废弃的 Echo/Aksen owner 混了回来。
     // 防护原则：① 更少的数据永远不许推上云端；② 数字 id 的演示种子一律丢弃；
-    //          ③ 合并只做「字段级叠加」，绝不整条/整表替换。
+    //          ③ 合并只做「字段级叠加」，绝不整条/整表替换；
+    //          ④ 含非法 owner（Echo/Aksen）的数据一律拦截，绝不上传也不采纳。
     const SYNC_PUSH_ENABLED = true;      // 总开关：设为 false 则本浏览器彻底只读，不向云端推送任何改动
     var SYNC_SHRINK_ABS = 20;            // 条数减少超过该绝对值即视为可疑收缩
     var SYNC_SHRINK_RATIO = 0.95;        // 且剩余比例低于该值才判定为可疑收缩（允许正常的少量删除）
+    var ILLEGAL_OWNERS = ['Echo', 'Aksen'];  // 已废弃的 owner 名，出现即视为脏数据
     var remoteCustCount = -1;            // 最近一次 onValue 观测到的远端「真实客户」条数（-1 = 未知）
     var pushBlockReason = '';            // 非空 = 上一次推送被防护拦截（用于抑制重复告警）
 
@@ -3266,9 +3273,11 @@ ___DATA___
         out.detail = plain(rDetail);                                       // 本地缺 detail → 保留远端 detail
       }
       if (remoteRec && remoteRec.id != null) out.id = remoteRec.id;        // id 恒以远端为准，避免错位
+      if (remoteRec && remoteRec.custNo != null) out.custNo = remoteRec.custNo; // 编号同样不可变
       return out;
     }
     // 推送前的最后一道闸：本地（真实条数）少于远端即中止
+    // 【防护④-2026-08-20】含非法 owner 的数据一律拦截，绝不上传
     function guardPush(state){
       if (!SYNC_PUSH_ENABLED) {
         warnBlock('disabled', 'SYNC_PUSH_ENABLED=false，已阻止向云端推送（本浏览器为只读模式）');
@@ -3279,6 +3288,22 @@ ___DATA___
         warnBlock('shrink:' + localCount + '/' + remoteCustCount,
           '本地客户 ' + localCount + ' 条 < 云端 ' + remoteCustCount + ' 条，已中止推送（防止旧数据覆盖云端）。'
           + '请先刷新页面拉取云端最新数据，再重新操作。');
+        return false;
+      }
+      // 【新增】检查本地数据是否含非法 owner
+      var localList = stateCustList(state);
+      var illegalRecs = [];
+      for (var i = 0; i < localList.length; i++) {
+        var c = localList[i];
+        if (c && ILLEGAL_OWNERS.indexOf(c.owner) >= 0) {
+          illegalRecs.push((c.name || c.id || '#' + i) + '(' + c.owner + ')');
+        }
+      }
+      if (illegalRecs.length > 0) {
+        warnBlock('illegal-owner',
+          '⛔ 本地数据含 ' + illegalRecs.length + ' 条非法 owner 记录（' + illegalRecs.slice(0, 5).join(', ')
+          + (illegalRecs.length > 5 ? '…共' + illegalRecs.length + '条' : '')
+          + '），疑似旧标签页脏数据。已中止推送！请刷新页面后重试。');
         return false;
       }
       pushBlockReason = '';
@@ -3598,6 +3623,24 @@ ___DATA___
         if (rawRemoteLen !== remote.main.customers.length) {
           console.warn('[SYNC-GUARD] 已丢弃云端 ' + (rawRemoteLen - remote.main.customers.length) + ' 条数字 id 演示种子');
         }
+      }
+      // 【防护④-2026-08-20】远端含非法 owner（Echo/Aksen）→ 视为脏数据，拒绝采纳，保留本地
+      var remoteIllegal = [];
+      if (remote.main && Array.isArray(remote.main.customers)) {
+        for (var ri = 0; ri < remote.main.customers.length; ri++) {
+          var rrc = remote.main.customers[ri];
+          if (rrc && ILLEGAL_OWNERS.indexOf(rrc.owner) >= 0) {
+            remoteIllegal.push((rrc.name || rrc.id || '#' + ri) + '(' + rrc.owner + ')');
+          }
+        }
+      }
+      if (remoteIllegal.length > 0) {
+        console.error('[SYNC-GUARD] ⛔ 远端含 ' + remoteIllegal.length + ' 条非法 owner 脏数据（'
+          + remoteIllegal.slice(0, 5).join(', ') + '…），已拒绝采纳，保留本地数据不变。'
+          + '这是旧浏览器标签页回推导致的，请通知相关同事刷新页面。');
+        setStatus(true);
+        if (window.__onRemoteUpdate) window.__onRemoteUpdate();
+        return;
       }
       // 记录远端「真实条数」，供推送闸门比较（这是防止旧数据覆盖的核心基准）
       remoteCustCount = realCustCount((remote.main && remote.main.customers) || []);
@@ -6300,8 +6343,10 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
 
     function openCustomerModal(customer) {
       if (!isAdmin()) { alert('仅管理员可新增或编辑客户资料。'); return; }
-      document.getElementById('customerModal').classList.add('active');
-      if (customer) {
+      // 用 rAF 让弹窗显示不阻塞表格渲染（3294 行时避免卡顿）
+      requestAnimationFrame(function(){
+        document.getElementById('customerModal').classList.add('active');
+        if (customer) {
         document.getElementById('customerModalTitle').textContent = '编辑客户';
         document.getElementById('customerId').value = customer.id;
         document.getElementById('customerName').value = customer.name;
@@ -6322,7 +6367,7 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
         document.getElementById('customerId').value = '';
         document.getElementById('customerName').value = '';
         document.getElementById('customerCountry').value = '';
-        document.getElementById('customerOwner').value = 'Echo';
+        document.getElementById('customerOwner').value = '漆继平';
         document.getElementById('customerStage').value = 'D1';
         document.getElementById('customerLevel').value = 'B';
         document.getElementById('customerLastContact').value = new Date().toISOString().split('T')[0];
@@ -6334,6 +6379,7 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
         setSourceValue('WORK BUDDY开发');
         setFollowFields({ wechatAdded: '否', wechatId: '', waAdded: '否', waId: '', touchStage: '', lost: '否', lostReason: '' });
       }
+      });  // end requestAnimationFrame
     }
 
     // 下一步行动改为下拉（需求5）。历史客户里那些「WhatsApp 法语首触，索报价单」之类的
@@ -6428,6 +6474,9 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
         const prev = appData.customers[idx] || {};
         customer.detail = prev.detail || customer.detail;
         customer.seed = prev.seed;
+        // 【编号不可变】id 和 custNo 一旦生成永不改变，删除后编号可被新客户复用
+        customer.id = prev.id;           // 强制保留原始 id，忽略任何篡改
+        customer.custNo = prev.custNo;   // 强制保留原始编号，忽略任何篡改
         appData.customers[idx] = { ...prev, ...customer };
       } else {
         customer.custNo = getNextCustomerId();   // UI改造#5：新增客户优先复用最小空缺编号
