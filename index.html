@@ -3201,7 +3201,9 @@ ___DATA___
     //          ④ 含非法 owner（Echo/Aksen）的数据一律拦截，绝不上传也不采纳。
     const SYNC_PUSH_ENABLED = true;      // 总开关：设为 false 则本浏览器彻底只读，不向云端推送任何改动
     var SYNC_SHRINK_ABS = 20;            // 条数减少超过该绝对值即视为可疑收缩
-    var SYNC_SHRINK_RATIO = 0.95;        // 且剩余比例低于该值才判定为可疑收缩（允许正常的少量删除）
+    var SYNC_SHRINK_RATIO = 0.95;            // 且剩余比例低于该值才判定为可疑收缩（允许正常的少量删除）
+    var SYNC_QUALITY_ABS = 5;             // 有效跟进数（已加WA/已加微/有最近联系）差值超过该绝对值且比例低于阈值，即视为可疑降级
+    var SYNC_QUALITY_RATIO = 0.9;         // 远端有效跟进数低于本地该比例，则拒绝采纳远端、保留本地并回推
     var ILLEGAL_OWNERS = ['Echo', 'Aksen'];  // 已废弃的 owner 名，出现即视为脏数据
     var remoteCustCount = -1;            // 最近一次 onValue 观测到的远端「真实客户」条数（-1 = 未知）
     var pushBlockReason = '';            // 非空 = 上一次推送被防护拦截（用于抑制重复告警）
@@ -3220,6 +3222,20 @@ ___DATA___
       return out;
     }
     function realCustCount(list){ return realCustList(list).length; }
+    function followQuality(list){
+      if (!Array.isArray(list)) return 0;
+      var n = 0;
+      for (var i = 0; i < list.length; i++) {
+        var c = list[i];
+        if (!c || typeof c !== "object") continue;
+        var wa = c.waAdded;
+        if (wa === true || (typeof wa === "string" && wa.trim() === "是")) n++;
+        var wc = c.wechatAdded;
+        if (wc === true || (typeof wc === "string" && (wc.trim() === "是" || wc.trim() === "待通过"))) n++;
+        if (c.lastContact && String(c.lastContact).trim()) n++;
+      }
+      return n;
+    }
     function stateCustList(state){
       var main = (state && state.main) || {};
       return Array.isArray(main.customers) ? main.customers : [];
@@ -3656,6 +3672,21 @@ ___DATA___
         setStatus(true);
         if (syncPhase !== 'error') setSync('ok');
         if (pendingPushAfterSync) { pendingPushAfterSync = false; schedulePush(); }
+        if (window.__onRemoteUpdate) window.__onRemoteUpdate();
+        return;
+      }
+      // 【防护⑤-2026-08-20】跟进质量检查：远端有效跟进数远少于本地 → 拒绝采纳远端、保留本地并回推
+      // 本次"已加WA从60+掉到17"事故的根因补丁：旧版本与当前版本条数相同（3294），
+      // 防护③只看条数无法识别，必须补上"跟进质量"维度才能拦住降级回推。
+      var localQuality = followQuality((localState().customers) || []);
+      var remoteQuality = followQuality((remote.main && remote.main.customers) || []);
+      if (remoteQuality < localQuality * SYNC_QUALITY_RATIO && (localQuality - remoteQuality) > SYNC_QUALITY_ABS) {
+        console.warn("[SYNC-GUARD] 云端有效跟进 " + remoteQuality + " 条远少于本地 " + localQuality
+          + " 条，疑似云端跟进数据被旧版本覆盖：本轮保留本地并回推，防止进度丢失");
+        try { writeMem(localState()); } catch(e){}
+        base = snapshotOf(remote);
+        setStatus(true);
+        schedulePush();
         if (window.__onRemoteUpdate) window.__onRemoteUpdate();
         return;
       }
