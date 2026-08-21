@@ -3919,8 +3919,24 @@ const Z_IMPORT_CUSTOMERS = [{"id": "z1-001", "seed": "zimport", "batch": "全球
       return d;
     }
 
+    // 【性能修复-2026-08-21】saveData 异步防抖化：
+    // 原实现每次编辑都同步 JSON.stringify 全量数据（3294条≈20MB）并写 localStorage，
+    // 同步阻塞主线程导致"双击编辑卡半天"（且数据远超5MB配额，写入本就失败）。
+    // 现改为：只登记待写数据 + 600ms 防抖合并多次编辑为一次写入，写操作移出主线程同步路径；
+    // 写入失败（配额超限）仅告警，不影响界面与云端同步（Firebase 为数据真源）。
+    var __saveTimer = null;
+    var __savePending = null;
     function saveData(data) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      __savePending = data || appData;
+      if (__saveTimer) return;              // 防抖：600ms 内多次保存只写一次
+      __saveTimer = setTimeout(function () {
+        __saveTimer = null;
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(__savePending));
+        } catch (e) {
+          console.warn('[save] localStorage 写入失败（配额或体积限制，云端不受影响）：' + (e && e.message || e));
+        }
+      }, 600);
     }
 
     // 标记「本次写入由用户主动编辑触发」：同步层推送结束后会给出成功/失败 toast 回执。
